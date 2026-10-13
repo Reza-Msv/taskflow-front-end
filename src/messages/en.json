@@ -1,0 +1,20 @@
+{
+  "Common": {
+    "title": "TaskFlow",
+    "description": "Open-source, enterprise-ready project and work management platform",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "Auth": {
+    "login": "Sign In",
+    "email": "Email Address",
+    "password": "Password"
+  },
+  "Dashboard": {
+    "projects": "Projects",
+    "sprints": "Sprints",
+    "board": "Kanban Board",
+    "backlog": "Backlog"
+  }
+}
