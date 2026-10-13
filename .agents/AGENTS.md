@@ -3,6 +3,7 @@
 This frontend repository follows strict enterprise modular architecture standards. All contributors and AI agents must follow these rules.
 
 ## Core Rules
+
 1. **Mandatory Testing after Every Change**:
    - Write unit or component tests in `*.test.ts` or `*.test.tsx` alongside any new or changed code.
    - Run and verify tests using `pnpm run test` before completing any task.
@@ -26,7 +27,9 @@ This frontend repository follows strict enterprise modular architecture standard
    - Ensure clear loading, empty, and error states for all asynchronous components.
 
 ## Skills Reference
+
 Skills are located in `.agents/skills/`:
+
 - `frontend-architecture`: Enforces modular folder boundaries.
 - `nextjs`: Next.js 14 App Router patterns.
 - `react`: React component standards, hooks, and performance.
