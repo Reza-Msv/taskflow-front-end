@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 465" fill="none">
+  <!-- Shape 1: Top T-Bar and Stem -->
+  <polygon points="66,51 363,51 304,125 219,127 219,234 139,233 138,125 8,125" fill="#1E293B" />
+  <!-- Shape 2: Slanted Slash and Arrow -->
+  <polygon points="446,6 545,6 183,457 29,280 133,280 182,335 341,136 365,134 365,107" fill="#1E293B" />
+  <!-- Shape 3: Orange Geometric Accent -->
+  <polygon points="509,112 553,181 394,382 593,383 534,457 235,456" fill="#FF5F01" />
+</svg>
