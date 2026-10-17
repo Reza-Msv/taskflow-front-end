@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { registerSchema, type RegisterFormData } from "../schemas/auth-schemas";
 import { useAuth } from "../context/auth-context";
 import { AuthErrorBanner } from "./auth-error-banner";
+import { AuthLegalFooter } from "./auth-legal-footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,6 @@ export function RegisterForm() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      full_name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -43,7 +43,11 @@ export function RegisterForm() {
   const onSubmit = async (data: RegisterFormData) => {
     setServerError(null);
     try {
-      await registerUser(data);
+      const payload = {
+        ...data,
+        full_name: data.full_name?.trim() || data.email.split("@")[0],
+      };
+      await registerUser(payload);
       toast.success(
         currentLocale === "fa"
           ? "حساب کاربری شما با موفقیت ایجاد شد. لطفاً وارد شوید."
@@ -77,33 +81,6 @@ export function RegisterForm() {
         <AuthErrorBanner title="Registration failed" message={serverError} />
       )}
 
-      {/* Full Name Field */}
-      <div className="space-y-1.5">
-        <Label htmlFor="register-full-name" className="text-xs font-medium">
-          {currentLocale === "fa" ? "نام و نام خانوادگی" : "Full Name"}
-        </Label>
-        <Input
-          id="register-full-name"
-          type="text"
-          autoComplete="name"
-          placeholder={currentLocale === "fa" ? "علی محمدی" : "John Doe"}
-          aria-invalid={Boolean(errors.full_name)}
-          aria-describedby={
-            errors.full_name ? "register-full-name-error" : undefined
-          }
-          {...register("full_name")}
-        />
-        {errors.full_name && (
-          <p
-            id="register-full-name-error"
-            role="alert"
-            className="text-xs font-medium text-destructive"
-          >
-            {errors.full_name.message}
-          </p>
-        )}
-      </div>
-
       {/* Email Field */}
       <div className="space-y-1.5">
         <Label htmlFor="register-email" className="text-xs font-medium">
@@ -116,6 +93,7 @@ export function RegisterForm() {
           autoCapitalize="none"
           autoCorrect="off"
           placeholder="name@company.com"
+          className="h-10 bg-input-background/60"
           aria-invalid={Boolean(errors.email)}
           aria-describedby={errors.email ? "register-email-error" : undefined}
           {...register("email")}
@@ -142,7 +120,7 @@ export function RegisterForm() {
             type={showPassword ? "text" : "password"}
             autoComplete="new-password"
             placeholder="••••••••"
-            className="pr-10 rtl:pl-10 rtl:pr-3"
+            className="h-10 bg-input-background/60 pr-10 rtl:pl-10 rtl:pr-3"
             aria-invalid={Boolean(errors.password)}
             aria-describedby={
               errors.password ? "register-password-error" : undefined
@@ -152,7 +130,7 @@ export function RegisterForm() {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rtl:left-3 rtl:right-auto"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rtl:left-3 rtl:right-auto"
             aria-label={
               showPassword
                 ? currentLocale === "fa"
@@ -189,19 +167,42 @@ export function RegisterForm() {
         >
           {currentLocale === "fa" ? "تکرار رمز عبور" : "Confirm Password"}
         </Label>
-        <Input
-          id="register-confirm-password"
-          type={showPassword ? "text" : "password"}
-          autoComplete="new-password"
-          placeholder="••••••••"
-          aria-invalid={Boolean(errors.confirmPassword)}
-          aria-describedby={
-            errors.confirmPassword
-              ? "register-confirm-password-error"
-              : undefined
-          }
-          {...register("confirmPassword")}
-        />
+        <div className="relative">
+          <Input
+            id="register-confirm-password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
+            placeholder="••••••••"
+            className="h-10 bg-input-background/60 pr-10 rtl:pl-10 rtl:pr-3"
+            aria-invalid={Boolean(errors.confirmPassword)}
+            aria-describedby={
+              errors.confirmPassword
+                ? "register-confirm-password-error"
+                : undefined
+            }
+            {...register("confirmPassword")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rtl:left-3 rtl:right-auto"
+            aria-label={
+              showPassword
+                ? currentLocale === "fa"
+                  ? "پنهان کردن رمز عبور"
+                  : "Hide password"
+                : currentLocale === "fa"
+                  ? "نمایش رمز عبور"
+                  : "Show password"
+            }
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
         {errors.confirmPassword && (
           <p
             id="register-confirm-password-error"
@@ -213,11 +214,11 @@ export function RegisterForm() {
         )}
       </div>
 
-      {/* Submit Button */}
+      {/* Primary Submit Button */}
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="w-full font-semibold shadow-sm"
+        className="h-10 w-full font-semibold shadow-sm"
       >
         {isSubmitting ? (
           <>
@@ -233,7 +234,7 @@ export function RegisterForm() {
         )}
       </Button>
 
-      {/* Switch to Login */}
+      {/* Footer Switch to Login */}
       <div className="pt-2 text-center text-xs text-muted-foreground">
         <span>
           {currentLocale === "fa"
@@ -247,6 +248,9 @@ export function RegisterForm() {
           {currentLocale === "fa" ? "وارد شوید" : "Sign in"}
         </Link>
       </div>
+
+      {/* Secondary Legal Links */}
+      <AuthLegalFooter currentLocale={currentLocale} />
     </form>
   );
 }

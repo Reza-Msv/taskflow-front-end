@@ -75,9 +75,14 @@ export const authService = {
         full_name,
         ...rest
       } = credentials;
+      const derivedFullName =
+        full_name?.trim() ||
+        name?.trim() ||
+        (rest.email ? rest.email.split("@")[0] : "") ||
+        "User";
       const payload = {
         ...rest,
-        full_name: full_name ?? name ?? "",
+        full_name: derivedFullName,
       };
       const response = await apiClient<AuthUser | { user: AuthUser }>(
         AUTH_ENDPOINTS.register,

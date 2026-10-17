@@ -5,9 +5,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { loginSchema, type LoginFormData } from "../schemas/auth-schemas";
 import { useAuth } from "../context/auth-context";
+import { AuthErrorBanner } from "./auth-error-banner";
 import { getSafeRedirectPath } from "@/lib/safe-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,17 +85,7 @@ export function LoginForm() {
 
       {/* Server Error Alert Banner */}
       {serverError && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive dark:border-destructive/50"
-        >
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <div className="flex-1 leading-relaxed">
-            <span className="font-semibold">Sign in failed: </span>
-            {serverError}
-          </div>
-        </div>
+        <AuthErrorBanner title="Sign in failed" message={serverError} />
       )}
 
       {/* Email Field */}
@@ -108,9 +99,8 @@ export function LoginForm() {
           autoComplete="email"
           autoCapitalize="none"
           autoCorrect="off"
-          placeholder={
-            currentLocale === "fa" ? "name@company.com" : "name@company.com"
-          }
+          placeholder="name@company.com"
+          className="h-10 bg-input-background/60"
           aria-invalid={Boolean(errors.email)}
           aria-describedby={errors.email ? "login-email-error" : undefined}
           {...register("email")}
@@ -132,6 +122,14 @@ export function LoginForm() {
           <Label htmlFor="login-password" className="text-xs font-medium">
             {currentLocale === "fa" ? "رمز عبور" : "Password"}
           </Label>
+          <Link
+            href={`/${currentLocale}/forgot-password`}
+            className="text-xs font-medium text-muted-foreground transition-colors hover:text-primary hover:underline"
+          >
+            {currentLocale === "fa"
+              ? "رمز عبور را فراموش کرده‌اید؟"
+              : "Forgot Password?"}
+          </Link>
         </div>
         <div className="relative">
           <Input
@@ -139,7 +137,7 @@ export function LoginForm() {
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             placeholder="••••••••"
-            className="pr-10 rtl:pl-10 rtl:pr-3"
+            className="h-10 bg-input-background/60 pr-10 rtl:pl-10 rtl:pr-3"
             aria-invalid={Boolean(errors.password)}
             aria-describedby={
               errors.password ? "login-password-error" : undefined
@@ -149,7 +147,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rtl:left-3 rtl:right-auto"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rtl:left-3 rtl:right-auto"
             aria-label={
               showPassword
                 ? currentLocale === "fa"
@@ -178,11 +176,11 @@ export function LoginForm() {
         )}
       </div>
 
-      {/* Submit Button */}
+      {/* Primary Submit Button */}
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="w-full font-semibold shadow-sm"
+        className="h-10 w-full font-semibold shadow-sm"
       >
         {isSubmitting ? (
           <>
@@ -196,7 +194,7 @@ export function LoginForm() {
         )}
       </Button>
 
-      {/* Switch to Register */}
+      {/* Footer Switch to Register */}
       <div className="pt-2 text-center text-xs text-muted-foreground">
         <span>
           {currentLocale === "fa"

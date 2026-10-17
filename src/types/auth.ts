@@ -14,10 +14,10 @@ export interface LoginCredentials {
 }
 
 export interface RegisterCredentials {
-  full_name: string;
   email: string;
   password: string;
   confirmPassword?: string;
+  full_name?: string;
   name?: string;
 }
 

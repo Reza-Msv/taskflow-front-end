@@ -47,7 +47,16 @@ describe("loginSchema", () => {
 });
 
 describe("registerSchema", () => {
-  it("validates valid registration data", () => {
+  it("validates valid registration data with email and password", () => {
+    const result = registerSchema.safeParse({
+      email: "alex@taskflow.dev",
+      password: "password123",
+      confirmPassword: "password123",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("validates valid registration data with optional full_name", () => {
     const result = registerSchema.safeParse({
       full_name: "Alex Vance",
       email: "alex@taskflow.dev",
@@ -59,7 +68,6 @@ describe("registerSchema", () => {
 
   it("fails when passwords do not match", () => {
     const result = registerSchema.safeParse({
-      full_name: "Alex Vance",
       email: "alex@taskflow.dev",
       password: "password123",
       confirmPassword: "password456",
@@ -75,7 +83,6 @@ describe("registerSchema", () => {
 
   it("fails when password is shorter than 8 characters", () => {
     const result = registerSchema.safeParse({
-      full_name: "Alex Vance",
       email: "alex@taskflow.dev",
       password: "short",
       confirmPassword: "short",
@@ -89,16 +96,15 @@ describe("registerSchema", () => {
     }
   });
 
-  it("fails on empty full name", () => {
+  it("fails on empty email", () => {
     const result = registerSchema.safeParse({
-      full_name: "",
-      email: "alex@taskflow.dev",
+      email: "",
       password: "password123",
       confirmPassword: "password123",
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Full name is required");
+      expect(result.error.issues[0]?.message).toBe("Email is required");
     }
   });
 

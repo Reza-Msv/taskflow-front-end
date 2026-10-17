@@ -25,7 +25,7 @@ describe("RegisterForm", () => {
     vi.spyOn(authService, "getCurrentUser").mockResolvedValue(null);
   });
 
-  it("renders all registration fields and switch link to login", async () => {
+  it("renders email, password, confirm password, submit button, and links", async () => {
     render(
       <AuthProvider>
         <RegisterForm />
@@ -33,9 +33,8 @@ describe("RegisterForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     });
-    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
     expect(
@@ -45,6 +44,12 @@ describe("RegisterForm", () => {
       "href",
       "/en/login"
     );
+    expect(
+      screen.getByRole("link", { name: /terms of service/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /privacy policy/i })
+    ).toBeInTheDocument();
   });
 
   it("validates that passwords must match", async () => {
@@ -57,10 +62,9 @@ describe("RegisterForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/full name/i), "Sam Smith");
     await user.type(
       screen.getByLabelText(/email address/i),
       "sam@taskflow.dev"
@@ -97,10 +101,9 @@ describe("RegisterForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/full name/i), "Sam Smith");
     await user.type(
       screen.getByLabelText(/email address/i),
       "sam@taskflow.dev"
@@ -121,8 +124,8 @@ describe("RegisterForm", () => {
     vi.spyOn(authService, "register").mockResolvedValueOnce({
       id: "u-101",
       email: "sam@taskflow.dev",
-      full_name: "Sam Smith",
-      name: "Sam Smith",
+      full_name: "sam",
+      name: "sam",
     });
 
     const user = userEvent.setup();
@@ -134,10 +137,9 @@ describe("RegisterForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/full name/i), "Sam Smith");
     await user.type(
       screen.getByLabelText(/email address/i),
       "sam@taskflow.dev"
@@ -148,7 +150,7 @@ describe("RegisterForm", () => {
 
     await waitFor(() => {
       expect(authService.register).toHaveBeenCalledWith({
-        full_name: "Sam Smith",
+        full_name: "sam",
         email: "sam@taskflow.dev",
         password: "password123",
         confirmPassword: "password123",
