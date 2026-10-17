@@ -81,4 +81,25 @@ describe("ProtectedRoute", () => {
 
     expect(replaceMock).not.toHaveBeenCalled();
   });
+
+  it("redirects to login when session expires on backend verification", async () => {
+    // Backend returns 401 on profile verification, resolving getCurrentUser to null
+    vi.spyOn(authService, "getCurrentUser").mockResolvedValueOnce(null);
+
+    render(
+      <AuthProvider>
+        <ProtectedRoute>
+          <div data-testid="protected-content">Secret Dashboard</div>
+        </ProtectedRoute>
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith(
+        `/en/login?redirect=${encodeURIComponent("/en/projects/tf-core/board")}`
+      );
+    });
+
+    expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
+  });
 });

@@ -7,7 +7,8 @@ import { authService } from "../services/auth-service";
 import { ApiClientError } from "@/services/api-client";
 
 function TestConsumer() {
-  const { user, isLoading, error, isAuthenticated, login, logout } = useAuth();
+  const { user, isLoading, error, isAuthenticated, login, logout, register } =
+    useAuth();
 
   return (
     <div>
@@ -23,6 +24,17 @@ function TestConsumer() {
         }
       >
         Sign In
+      </button>
+      <button
+        onClick={() =>
+          register({
+            full_name: "Reg User",
+            email: "reg@taskflow.dev",
+            password: "password123",
+          })
+        }
+      >
+        Register
       </button>
       <button onClick={() => logout()}>Sign Out</button>
     </div>
@@ -148,6 +160,37 @@ describe("AuthContext & AuthProvider", () => {
       await user.click(screen.getByRole("button", { name: "Sign Out" }));
     });
 
+    expect(screen.getByTestId("auth").textContent).toBe("unauthenticated");
+    expect(screen.getByTestId("user").textContent).toBe("none");
+  });
+
+  it("does not authenticate session on registration", async () => {
+    vi.spyOn(authService, "getCurrentUser").mockResolvedValueOnce(null);
+    vi.spyOn(authService, "register").mockResolvedValueOnce({
+      id: "u-300",
+      email: "reg@taskflow.dev",
+      full_name: "Reg User",
+      name: "Reg User",
+    });
+
+    const user = userEvent.setup();
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("ready");
+    });
+
+    // Perform Register
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Register" }));
+    });
+
+    // User should remain unauthenticated
     expect(screen.getByTestId("auth").textContent).toBe("unauthenticated");
     expect(screen.getByTestId("user").textContent).toBe("none");
   });

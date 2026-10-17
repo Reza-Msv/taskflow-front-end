@@ -40,6 +40,16 @@ export function getSafeRedirectPath(
     return fallback;
   }
 
+  // Prevent redirect loops to authentication pages
+  const pathWithoutLocale = pathPart.replace(/^\/(en|fa)(\/|$)/, "/");
+  if (
+    pathWithoutLocale === "/login" ||
+    pathWithoutLocale === "/register" ||
+    pathWithoutLocale === "/"
+  ) {
+    return fallback;
+  }
+
   // If path already has locale prefix (e.g. /en/... or /fa/...)
   if (trimmed === `/${locale}` || trimmed.startsWith(`/${locale}/`)) {
     return trimmed;

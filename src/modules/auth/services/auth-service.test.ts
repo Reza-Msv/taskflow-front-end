@@ -104,9 +104,9 @@ describe("authService", () => {
         csrf_token: "csrf_token_123",
         message: "User registered successfully",
       };
-      vi.spyOn(apiClientModule, "apiClient").mockResolvedValueOnce(
-        mockBackendResponse
-      );
+      vi.spyOn(apiClientModule, "apiClient")
+        .mockResolvedValueOnce(mockBackendResponse)
+        .mockResolvedValueOnce(undefined);
 
       const user = await authService.register({
         full_name: "Sam Smith",
@@ -126,6 +126,13 @@ describe("authService", () => {
           }),
         }
       );
+      // Registration must revoke any issued session
+      expect(apiClientModule.apiClient).toHaveBeenCalledWith(
+        AUTH_ENDPOINTS.logout,
+        {
+          method: "POST",
+        }
+      );
 
       expect(user).toEqual(mockBackendResponse.user);
     });
@@ -136,9 +143,11 @@ describe("authService", () => {
         email: "legacy@taskflow.dev",
         full_name: "Legacy User",
       };
-      vi.spyOn(apiClientModule, "apiClient").mockResolvedValueOnce({
-        user: mockUser,
-      });
+      vi.spyOn(apiClientModule, "apiClient")
+        .mockResolvedValueOnce({
+          user: mockUser,
+        })
+        .mockResolvedValueOnce(undefined);
 
       await authService.register({
         name: "Legacy User",
@@ -181,12 +190,19 @@ describe("authService", () => {
   });
 
   describe("getCurrentUser", () => {
-    it("returns user when authenticated", async () => {
+    it("calls /api/v1/auth/me and returns user when authenticated", async () => {
+      expect(AUTH_ENDPOINTS.currentUser).toBe("/api/v1/auth/me");
       const mockUser = { id: "u-1", email: "user@taskflow.dev" };
       vi.spyOn(apiClientModule, "apiClient").mockResolvedValueOnce(mockUser);
 
       const user = await authService.getCurrentUser();
       expect(user).toEqual(mockUser);
+      expect(apiClientModule.apiClient).toHaveBeenCalledWith(
+        "/api/v1/auth/me",
+        {
+          method: "GET",
+        }
+      );
     });
 
     it("returns null on 401 unauthenticated", async () => {

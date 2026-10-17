@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../context/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,18 +9,61 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const currentLocale = pathname?.split("/")[1] || "en";
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user, refreshSession } = useAuth();
+  const [isVerifying, setIsVerifying] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    let cancelled = false;
+
+    const verify = async () => {
+      setIsVerifying(true);
+      try {
+        const verifiedUser = await refreshSession();
+        if (cancelled) return;
+        if (!verifiedUser) {
+          const redirectUrl = `/${currentLocale}/login?redirect=${encodeURIComponent(
+            pathname
+          )}`;
+          router.replace(redirectUrl);
+        }
+      } catch {
+        if (cancelled) return;
+        const redirectUrl = `/${currentLocale}/login?redirect=${encodeURIComponent(
+          pathname
+        )}`;
+        router.replace(redirectUrl);
+      } finally {
+        if (!cancelled) {
+          setIsVerifying(false);
+        }
+      }
+    };
+
+    verify();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, currentLocale, refreshSession, router]);
+
+  useEffect(() => {
+    if (!isLoading && !isVerifying && (!isAuthenticated || !user)) {
       const redirectUrl = `/${currentLocale}/login?redirect=${encodeURIComponent(
         pathname
       )}`;
       router.replace(redirectUrl);
     }
-  }, [isLoading, isAuthenticated, router, currentLocale, pathname]);
+  }, [
+    isLoading,
+    isVerifying,
+    isAuthenticated,
+    user,
+    router,
+    currentLocale,
+    pathname,
+  ]);
 
-  if (isLoading || !isAuthenticated) {
+  if (isLoading || isVerifying || !isAuthenticated || !user) {
     return (
       <div
         role="status"

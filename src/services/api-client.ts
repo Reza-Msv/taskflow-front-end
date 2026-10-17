@@ -26,6 +26,44 @@ export class ApiClientError extends Error {
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
+let inMemoryCsrfToken: string | null = null;
+
+export function setCsrfToken(token: string | null): void {
+  inMemoryCsrfToken = token;
+}
+
+export function getCsrfToken(): string | null {
+  if (typeof document !== "undefined") {
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("taskflow_csrf="));
+    if (match) {
+      return decodeURIComponent(match.split("=")[1]);
+    }
+  }
+  return inMemoryCsrfToken;
+}
+
+type UnauthorizedCallback = () => void;
+const unauthorizedListeners = new Set<UnauthorizedCallback>();
+
+export function onUnauthorized(callback: UnauthorizedCallback): () => void {
+  unauthorizedListeners.add(callback);
+  return () => {
+    unauthorizedListeners.delete(callback);
+  };
+}
+
+export function notifyUnauthorized(): void {
+  unauthorizedListeners.forEach((cb) => {
+    try {
+      cb();
+    } catch (e) {
+      console.error("Error in unauthorized listener", e);
+    }
+  });
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -35,6 +73,18 @@ export async function apiClient<T>(
 
   if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
+  }
+
+  // Inject CSRF token for mutating requests when available
+  const method = (options.method || "GET").toUpperCase();
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+    !headers.has("X-CSRF-Token")
+  ) {
+    const csrf = getCsrfToken();
+    if (csrf) {
+      headers.set("X-CSRF-Token", csrf);
+    }
   }
 
   let response: Response;
@@ -59,6 +109,15 @@ export async function apiClient<T>(
   }
 
   if (!response.ok) {
+    // Notify session listeners on 401 Unauthorized for authenticated endpoints
+    if (
+      response.status === 401 &&
+      !endpoint.includes("/auth/login") &&
+      !endpoint.includes("/auth/register")
+    ) {
+      notifyUnauthorized();
+    }
+
     let payload: ApiErrorPayload;
     try {
       payload = await response.json();
@@ -78,5 +137,14 @@ export async function apiClient<T>(
     return {} as T;
   }
 
-  return response.json();
+  const data = await response.json();
+  if (
+    data &&
+    typeof data === "object" &&
+    "csrf_token" in data &&
+    typeof (data as { csrf_token: unknown }).csrf_token === "string"
+  ) {
+    setCsrfToken((data as { csrf_token: string }).csrf_token);
+  }
+  return data;
 }

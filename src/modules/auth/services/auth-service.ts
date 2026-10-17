@@ -1,4 +1,4 @@
-import { apiClient, ApiClientError } from "@/services/api-client";
+import { apiClient, ApiClientError, setCsrfToken } from "@/services/api-client";
 import type {
   AuthUser,
   LoginCredentials,
@@ -9,7 +9,7 @@ export const AUTH_ENDPOINTS = {
   login: "/api/v1/auth/login",
   register: "/api/v1/auth/register",
   logout: "/api/v1/auth/logout",
-  currentUser: "/api/v1/users/me",
+  currentUser: "/api/v1/auth/me",
 } as const;
 
 /**
@@ -65,6 +65,7 @@ export const authService = {
 
   /**
    * Submit registration data to create a new user account.
+   * Does NOT treat registration as an active session: explicitly clears any issued session.
    */
   async register(credentials: RegisterCredentials): Promise<AuthUser> {
     try {
@@ -85,6 +86,13 @@ export const authService = {
           body: JSON.stringify(payload),
         }
       );
+
+      // Invalidate any session issued upon registration to ensure the user must explicitly sign in
+      try {
+        await authService.logout();
+      } catch {
+        // Ignore logout errors if session was not issued
+      }
 
       if ("user" in response && response.user) {
         return response.user;
@@ -163,6 +171,8 @@ export const authService = {
     } catch (err) {
       // Log failure but let caller clear local state
       console.warn("Logout request failed on server:", err);
+    } finally {
+      setCsrfToken(null);
     }
   },
 };

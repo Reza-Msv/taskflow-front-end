@@ -9,6 +9,7 @@ import { ApiClientError } from "@/services/api-client";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
+let mockSearchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -16,12 +17,13 @@ vi.mock("next/navigation", () => ({
     replace: replaceMock,
   }),
   usePathname: () => "/en/login",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
 }));
 
 describe("LoginForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParams = new URLSearchParams();
     vi.spyOn(authService, "getCurrentUser").mockResolvedValue(null);
   });
 
@@ -161,6 +163,57 @@ describe("LoginForm", () => {
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/en/projects");
+    });
+  });
+
+  it("displays registration success banner when registered=true query param is present", async () => {
+    mockSearchParams = new URLSearchParams("registered=true");
+
+    render(
+      <AuthProvider>
+        <LoginForm />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      const banner = screen.getByRole("status");
+      expect(banner).toBeInTheDocument();
+      expect(banner).toHaveTextContent(/account created/i);
+    });
+  });
+
+  it("redirects to intended safe destination on login when redirect param is present", async () => {
+    mockSearchParams = new URLSearchParams(
+      "redirect=%2Fen%2Fprojects%2Ftf-core%2Fboard"
+    );
+
+    vi.spyOn(authService, "login").mockResolvedValueOnce({
+      id: "u-99",
+      email: "user@taskflow.dev",
+      name: "Alex",
+    });
+
+    const user = userEvent.setup();
+
+    render(
+      <AuthProvider>
+        <LoginForm />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByLabelText(/email address/i),
+      "user@taskflow.dev"
+    );
+    await user.type(screen.getByLabelText(/^password/i), "password123");
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/en/projects/tf-core/board");
     });
   });
 });

@@ -99,7 +99,7 @@ Based on the backend `PRD.md` (Section 2.1 "Identity & Access Management") and `
     }
     ```
 
-#### 3. Current Session / User Profile (`GET /api/v1/users/me`)
+#### 3. Current Session / User Profile (`GET /api/v1/auth/me`)
 
 - **Request**: Cookie header with `taskflow_session`.
 - **Success Response (`200 OK`)**:

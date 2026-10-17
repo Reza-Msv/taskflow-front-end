@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { loginSchema, type LoginFormData } from "../schemas/auth-schemas";
 import { useAuth } from "../context/auth-context";
 import { getSafeRedirectPath } from "@/lib/safe-redirect";
@@ -20,6 +20,7 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const currentLocale = pathname?.split("/")[1] || "en";
   const redirectParam = searchParams.get("redirect");
+  const isRegistered = searchParams.get("registered") === "true";
 
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
@@ -60,6 +61,27 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      {/* Registration Success Alert Banner */}
+      {isRegistered && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:border-emerald-500/50 dark:text-emerald-400"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="flex-1 leading-relaxed">
+            <span className="font-semibold">
+              {currentLocale === "fa"
+                ? "حساب کاربری ایجاد شد: "
+                : "Account created: "}
+            </span>
+            {currentLocale === "fa"
+              ? "حساب کاربری شما با موفقیت ایجاد شد. لطفاً برای ادامه وارد شوید."
+              : "Your account was created successfully. Please sign in to continue."}
+          </div>
+        </div>
+      )}
+
       {/* Server Error Alert Banner */}
       {serverError && (
         <div

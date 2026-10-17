@@ -6,9 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { registerSchema, type RegisterFormData } from "../schemas/auth-schemas";
 import { useAuth } from "../context/auth-context";
-import { getSafeRedirectPath } from "@/lib/safe-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +43,15 @@ export function RegisterForm() {
     setServerError(null);
     try {
       await registerUser(data);
-      const safePath = getSafeRedirectPath(redirectParam, currentLocale);
-      router.push(safePath);
+      toast.success(
+        currentLocale === "fa"
+          ? "حساب کاربری شما با موفقیت ایجاد شد. لطفاً وارد شوید."
+          : "Account created successfully! Please sign in with your credentials."
+      );
+      const loginUrl = `/${currentLocale}/login?registered=true${
+        redirectParam ? `&redirect=${encodeURIComponent(redirectParam)}` : ""
+      }`;
+      router.push(loginUrl);
     } catch (err) {
       if (err instanceof ApiClientError) {
         setServerError(err.message);

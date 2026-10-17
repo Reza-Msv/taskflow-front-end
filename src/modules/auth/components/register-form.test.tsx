@@ -117,10 +117,11 @@ describe("RegisterForm", () => {
     });
   });
 
-  it("redirects to safe path on successful registration", async () => {
+  it("redirects to login with registered query on successful registration instead of dashboard", async () => {
     vi.spyOn(authService, "register").mockResolvedValueOnce({
       id: "u-101",
       email: "sam@taskflow.dev",
+      full_name: "Sam Smith",
       name: "Sam Smith",
     });
 
@@ -152,7 +153,8 @@ describe("RegisterForm", () => {
         password: "password123",
         confirmPassword: "password123",
       });
-      expect(pushMock).toHaveBeenCalledWith("/en/projects");
+      expect(pushMock).toHaveBeenCalledWith("/en/login?registered=true");
+      expect(pushMock).not.toHaveBeenCalledWith("/en/projects");
     });
   });
 });

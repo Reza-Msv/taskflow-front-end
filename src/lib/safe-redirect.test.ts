@@ -65,4 +65,12 @@ describe("getSafeRedirectPath", () => {
       "/en/projects?filter=active"
     );
   });
+
+  it("prevents redirect loops by returning fallback when target is login or register", () => {
+    expect(getSafeRedirectPath("/en/login", "en")).toBe("/en/projects");
+    expect(getSafeRedirectPath("/login", "en")).toBe("/en/projects");
+    expect(getSafeRedirectPath("/fa/login", "fa")).toBe("/fa/projects");
+    expect(getSafeRedirectPath("/en/register", "en")).toBe("/en/projects");
+    expect(getSafeRedirectPath("/register", "fa")).toBe("/fa/projects");
+  });
 });

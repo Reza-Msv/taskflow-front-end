@@ -7,6 +7,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { authService } from "../services/auth-service";
 import type {
@@ -15,7 +16,7 @@ import type {
   RegisterCredentials,
   AuthContextValue,
 } from "../types/auth-types";
-import { ApiClientError } from "@/services/api-client";
+import { ApiClientError, onUnauthorized } from "@/services/api-client";
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -23,28 +24,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const inFlightPromiseRef = useRef<Promise<AuthUser | null> | null>(null);
 
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
   const refreshSession = useCallback(async (): Promise<AuthUser | null> => {
-    try {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-      setError(null);
-      return currentUser;
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError(err.message);
-      } else {
-        setError("Unable to authenticate with backend server.");
-      }
-      setUser(null);
-      return null;
-    } finally {
-      setIsLoading(false);
+    if (inFlightPromiseRef.current) {
+      return inFlightPromiseRef.current;
     }
+
+    const promise = (async () => {
+      try {
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+        setError(null);
+        return currentUser;
+      } catch (err) {
+        if (err instanceof ApiClientError) {
+          setError(err.message);
+        } else {
+          setError("Unable to authenticate with backend server.");
+        }
+        setUser(null);
+        return null;
+      } finally {
+        setIsLoading(false);
+        inFlightPromiseRef.current = null;
+      }
+    })();
+
+    inFlightPromiseRef.current = promise;
+    return promise;
+  }, []);
+
+  // Listen for global 401 unauthorized notifications from apiClient
+  useEffect(() => {
+    const unsubscribe = onUnauthorized(() => {
+      setUser(null);
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -77,8 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setError(null);
       try {
-        const newUser = await authService.register(credentials);
-        setUser(newUser);
+        await authService.register(credentials);
+        // Do NOT treat registration as an active session
+        setUser(null);
       } catch (err) {
         const message =
           err instanceof ApiClientError
