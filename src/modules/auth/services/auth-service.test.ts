@@ -94,18 +94,69 @@ describe("authService", () => {
   });
 
   describe("register", () => {
-    it("successfully registers and returns user", async () => {
-      const mockUser = { id: "u-2", email: "new@taskflow.dev", name: "Sam" };
-      vi.spyOn(apiClientModule, "apiClient").mockResolvedValueOnce(mockUser);
+    it("successfully registers, maps full_name in request payload, and returns user", async () => {
+      const mockBackendResponse = {
+        user: {
+          id: "u-2",
+          email: "new@taskflow.dev",
+          full_name: "Sam Smith",
+        },
+        csrf_token: "csrf_token_123",
+        message: "User registered successfully",
+      };
+      vi.spyOn(apiClientModule, "apiClient").mockResolvedValueOnce(
+        mockBackendResponse
+      );
 
       const user = await authService.register({
-        name: "Sam",
+        full_name: "Sam Smith",
         email: "new@taskflow.dev",
         password: "password123",
         confirmPassword: "password123",
       });
 
-      expect(user).toEqual(mockUser);
+      expect(apiClientModule.apiClient).toHaveBeenCalledWith(
+        AUTH_ENDPOINTS.register,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            email: "new@taskflow.dev",
+            password: "password123",
+            full_name: "Sam Smith",
+          }),
+        }
+      );
+
+      expect(user).toEqual(mockBackendResponse.user);
+    });
+
+    it("maps legacy name field to full_name in payload if provided", async () => {
+      const mockUser = {
+        id: "u-3",
+        email: "legacy@taskflow.dev",
+        full_name: "Legacy User",
+      };
+      vi.spyOn(apiClientModule, "apiClient").mockResolvedValueOnce({
+        user: mockUser,
+      });
+
+      await authService.register({
+        name: "Legacy User",
+        email: "legacy@taskflow.dev",
+        password: "password123",
+      } as unknown as Parameters<typeof authService.register>[0]);
+
+      expect(apiClientModule.apiClient).toHaveBeenCalledWith(
+        AUTH_ENDPOINTS.register,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            email: "legacy@taskflow.dev",
+            password: "password123",
+            full_name: "Legacy User",
+          }),
+        }
+      );
     });
 
     it("translates 409 conflict into USER_ALREADY_EXISTS error", async () => {
@@ -121,7 +172,7 @@ describe("authService", () => {
 
       await expect(
         authService.register({
-          name: "Sam",
+          full_name: "Sam",
           email: "exists@taskflow.dev",
           password: "password123",
         })

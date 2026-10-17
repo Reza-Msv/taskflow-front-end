@@ -146,6 +146,12 @@ describe("RegisterForm", () => {
     await user.click(screen.getByRole("button", { name: /^create account$/i }));
 
     await waitFor(() => {
+      expect(authService.register).toHaveBeenCalledWith({
+        full_name: "Sam Smith",
+        email: "sam@taskflow.dev",
+        password: "password123",
+        confirmPassword: "password123",
+      });
       expect(pushMock).toHaveBeenCalledWith("/en/projects");
     });
   });

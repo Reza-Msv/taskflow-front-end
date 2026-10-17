@@ -32,7 +32,7 @@ export function RegisterForm() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      name: "",
+      full_name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -79,27 +79,29 @@ export function RegisterForm() {
         </div>
       )}
 
-      {/* Name Field */}
+      {/* Full Name Field */}
       <div className="space-y-1.5">
-        <Label htmlFor="register-name" className="text-xs font-medium">
+        <Label htmlFor="register-full-name" className="text-xs font-medium">
           {currentLocale === "fa" ? "نام و نام خانوادگی" : "Full Name"}
         </Label>
         <Input
-          id="register-name"
+          id="register-full-name"
           type="text"
           autoComplete="name"
           placeholder={currentLocale === "fa" ? "علی محمدی" : "John Doe"}
-          aria-invalid={Boolean(errors.name)}
-          aria-describedby={errors.name ? "register-name-error" : undefined}
-          {...register("name")}
+          aria-invalid={Boolean(errors.full_name)}
+          aria-describedby={
+            errors.full_name ? "register-full-name-error" : undefined
+          }
+          {...register("full_name")}
         />
-        {errors.name && (
+        {errors.full_name && (
           <p
-            id="register-name-error"
+            id="register-full-name-error"
             role="alert"
             className="text-xs font-medium text-destructive"
           >
-            {errors.name.message}
+            {errors.full_name.message}
           </p>
         )}
       </div>

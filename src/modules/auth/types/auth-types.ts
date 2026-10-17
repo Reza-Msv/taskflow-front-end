@@ -1,6 +1,7 @@
 export interface AuthUser {
   id: string;
   email: string;
+  full_name?: string | null;
   name?: string | null;
   avatar_url?: string | null;
   is_active?: boolean;
@@ -13,10 +14,11 @@ export interface LoginCredentials {
 }
 
 export interface RegisterCredentials {
-  name: string;
+  full_name: string;
   email: string;
   password: string;
   confirmPassword?: string;
+  name?: string;
 }
 
 export interface AuthResponse {

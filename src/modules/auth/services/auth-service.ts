@@ -68,7 +68,16 @@ export const authService = {
    */
   async register(credentials: RegisterCredentials): Promise<AuthUser> {
     try {
-      const { confirmPassword: _confirmPassword, ...payload } = credentials;
+      const {
+        confirmPassword: _confirmPassword,
+        name,
+        full_name,
+        ...rest
+      } = credentials;
+      const payload = {
+        ...rest,
+        full_name: full_name ?? name ?? "",
+      };
       const response = await apiClient<AuthUser | { user: AuthUser }>(
         AUTH_ENDPOINTS.register,
         {

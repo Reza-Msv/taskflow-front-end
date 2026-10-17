@@ -70,7 +70,7 @@ Based on the backend `PRD.md` (Section 2.1 "Identity & Access Management") and `
 - **Request Body (`application/json`)**:
   ```json
   {
-    "name": "Jane Doe",
+    "full_name": "Jane Doe",
     "email": "user@taskflow.dev",
     "password": "SecurePassword123!"
   }
@@ -83,7 +83,7 @@ Based on the backend `PRD.md` (Section 2.1 "Identity & Access Management") and `
       "user": {
         "id": "0192e2b3-...",
         "email": "user@taskflow.dev",
-        "name": "Jane Doe"
+        "full_name": "Jane Doe"
       }
     }
     ```
