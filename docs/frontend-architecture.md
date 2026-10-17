@@ -10,7 +10,7 @@ TaskFlow views follow a strict 3-tier layering to maintain clean separation of c
 2. **Page Orchestrator Level (`src/components/pages/...` or route views)**:
    - Coordinates filters, tab selections, dialog states, and sub-module layouts.
 3. **Domain Modules & Shared Product Components (`src/modules/...`, `src/components/shared/...`)**:
-   - Reusable domain blocks (e.g., `ProjectCard`, `TaskCard`, `KanbanBoard`, `FilterBar`, `AppSidebar`, `AppHeader`).
+   - Reusable domain blocks (e.g., `auth/` components like `LoginForm`, `RegisterForm`, `AuthCard`, `ProtectedRoute`, `GuestGuard`; shared blocks like `ProjectCard`, `TaskCard`, `KanbanBoard`, `FilterBar`, `AppSidebar`, `AppHeader`).
    - Built on top of headless accessible primitives in `src/components/ui/`.
 
 ---
@@ -58,4 +58,4 @@ All styles inherit from CSS custom variables configured in `src/styles/globals.c
 - **Button System**: Standardized 40px height with 8px radius, accessible 2px focus ring (`focus-visible:ring-2`), and dedicated loading spinner behavior preventing duplicate submissions.
 - **Responsive Workspace**: Persistent 240px desktop sidebar (collapsible to 68px) and accessible mobile sheet drawer (`min(320px, 85vw)`).
 
-See [`docs/design-system.md`](file:///Users/reza/Desktop/taskflow-project/taskflow-front-end/docs/design-system.md) for full token tables, status colors, and typography scales.
+See [`docs/design-system.md`](design-system.md) for full token tables, status colors, and typography scales.

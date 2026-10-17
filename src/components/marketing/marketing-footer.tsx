@@ -154,4 +154,3 @@ export function MarketingFooter({ locale }: MarketingFooterProps) {
     </footer>
   );
 }
-

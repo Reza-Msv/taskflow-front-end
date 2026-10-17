@@ -4,6 +4,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { locales } from "@/i18n/routing";
 import { ThemeProvider } from "@/components/shared/theme-provider";
+import { AuthProvider } from "@/modules/auth/context/auth-context";
+import { Toaster } from "@/components/ui/sonner";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -38,7 +40,10 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <NextIntlClientProvider locale={locale} messages={messages}>
-            {children}
+            <AuthProvider>
+              {children}
+              <Toaster />
+            </AuthProvider>
           </NextIntlClientProvider>
         </ThemeProvider>
       </body>

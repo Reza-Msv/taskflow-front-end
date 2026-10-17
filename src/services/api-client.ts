@@ -37,11 +37,26 @@ export async function apiClient<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (err: unknown) {
+    if (err instanceof ApiClientError) {
+      throw err;
+    }
+    throw new ApiClientError(0, {
+      error: {
+        code: "BACKEND_UNAVAILABLE",
+        message:
+          "Unable to connect to the backend server. Please verify the API is running.",
+        request_id: "req_network_error",
+      },
+    });
+  }
 
   if (!response.ok) {
     let payload: ApiErrorPayload;

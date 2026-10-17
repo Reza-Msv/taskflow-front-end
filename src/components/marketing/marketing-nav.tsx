@@ -118,7 +118,12 @@ export function MarketingNav() {
           </Link>
           <ThemeToggle />
           <Link
-            href={pathname.replace(/^\/(en|fa)/, currentLocale === "en" ? "/fa" : "/en") || (currentLocale === "en" ? "/fa" : "/en")}
+            href={
+              pathname.replace(
+                /^\/(en|fa)/,
+                currentLocale === "en" ? "/fa" : "/en"
+              ) || (currentLocale === "en" ? "/fa" : "/en")
+            }
             className="flex h-9 items-center justify-center rounded-md border border-border px-2.5 font-mono text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             aria-label="Toggle language"
           >
@@ -126,7 +131,9 @@ export function MarketingNav() {
           </Link>
           <Button asChild size="sm" className="gap-1.5 font-semibold shadow-sm">
             <Link href={`/${currentLocale}/projects`}>
-              <span>{currentLocale === "fa" ? "شروع به کار" : "Get Started"}</span>
+              <span>
+                {currentLocale === "fa" ? "شروع به کار" : "Get Started"}
+              </span>
               <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
             </Link>
           </Button>
