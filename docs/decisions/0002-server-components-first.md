@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Implemented & Verified)
 
 ## Context
 
@@ -25,9 +25,10 @@ We enforce a **Server Components First** architectural model across all routes:
      - User interactions (forms, buttons with click handlers, modal triggers, drag-and-drop).
    - Keep client boundaries as close to the interactive leaf node as practical.
 
-3. **Client Boundary Isolation Pattern**:
-   - Feature page routes (e.g., `src/app/[locale]/register/page.tsx`) remain thin Server Components that render a dedicated client-side orchestrator (e.g., `RegisterPage` from `src/components/pages/register-page.tsx`) or domain form.
-   - Route protection and session verification are encapsulated within client guards (e.g., `<ProtectedRoute>` and `<GuestGuard>`) without converting the outer root layout into a client component.
+3. **Client Boundary Isolation Pattern (Implemented)**:
+   - **Authentication Routes**: `src/app/[locale]/login/page.tsx` and `src/app/[locale]/register/page.tsx` are thin Server Components that render `LoginPage` and `RegisterPage` client orchestrators from `src/components/pages/`.
+   - **Dashboard Routes**: `src/app/[locale]/(dashboard)/projects/page.tsx` and `src/app/[locale]/(dashboard)/projects/[projectId]/board/page.tsx` are thin Server Components that render `ProjectsPage` and `ProjectBoardPage` client orchestrators from `src/components/pages/`.
+   - Route protection and session verification are encapsulated within client guards (e.g., `<ProtectedRoute>` and `<GuestGuard>`) without converting outer layout trees into client components.
 
 4. **Rule of Preservation**:
    - Never remove `"use client"` from a working component without verifying that it contains zero hooks, event handlers, or browser APIs.
@@ -38,7 +39,7 @@ We enforce a **Server Components First** architectural model across all routes:
 
 - **Reduced Bundle Footprint**: Server component code, markdown parsers, and server-side utilities are excluded from the client JavaScript bundle.
 - **Improved Performance**: Faster hydration and immediate rendering of static structural elements.
-- **Clear Separation**: Server data retrieval and client state orchestration remain cleanly demarcated.
+- **Clear Separation**: Server data retrieval and client state orchestration remain cleanly demarcated across both public marketing, auth, and dashboard workspace routes.
 
 ### Trade-offs & Mitigations
 

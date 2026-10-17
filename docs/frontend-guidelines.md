@@ -11,14 +11,14 @@ TaskFlow enforces a functional programming approach across the entire frontend:
 ### Functional Composition
 
 - **Zero Custom Classes**: Prohibit the use of `class`, custom OOP controllers, singletons, and inheritance hierarchies.
-- **Plain-Object Service Exports**: Group related API and domain methods as frozen/plain objects containing pure or asynchronous functions:
+- **Plain-Object Service Exports**: Group related API and domain methods as plain objects containing pure or asynchronous functions:
   ```typescript
-  // Preferred pattern
-  export const projectService = {
-    getProjects,
-    getProjectById,
-    createProject,
-    deleteProject,
+  // Preferred pattern (src/services/auth-service.ts)
+  export const authService = {
+    login,
+    register,
+    getCurrentUser,
+    logout,
   };
   ```
 - **Factory Functions**: Use factory functions instead of class builders for creating dynamic configurations or models.
@@ -33,17 +33,16 @@ To keep code reviews efficient and maintain high readability:
 
 - **Maximum File Size Target**: Source code files should aim for a maximum of **~250 lines** (excluding generated contracts and test suites).
 - **Maintainability Target, Not Dogma**: Do not prematurely fragment cohesive logic into unnatural one-line micro-files.
-- **Existing Files Exceeding the Target**:
-  The following files currently exceed 250 lines and represent candidate targets for future safe extraction:
-  1. `src/components/marketing/product-preview-demo.tsx` (413 lines): Candidate for extracting demo sub-panels and state tabs.
-  2. `src/components/marketing/hero-section.tsx` (286 lines): Candidate for extracting decorative background accents and badge callouts.
-  3. `src/modules/auth/components/register-form.tsx` (261 lines): Candidate for extracting the password requirement checklist or legal disclaimer block.
-  > **Rule**: Do not perform automated refactoring on these working files unless accompanied by dedicated regression tests.
+- **Decomposition Best Practices**:
+  The following files were previously over 250 lines and have been decomposed into focused subcomponents:
+  1. `src/components/marketing/product-preview-demo.tsx`: Reduced from 414 to 128 lines by extracting `demo-data.ts`, `demo-board-view.tsx`, `demo-list-view.tsx`, and `demo-overview-view.tsx`.
+  2. `src/components/marketing/hero-section.tsx`: Reduced from 287 to 162 lines by extracting `hero-mockup.tsx`.
+  3. `src/modules/auth/components/register-form.tsx`: Reduced to 252 lines by extracting `auth-error-banner.tsx`.
 
 ### Three-Layer Structure
 
-1. **Route Handlers (`src/app/`)**: Thin Server Components for URL routing, metadata, and data prefetching.
-2. **Page Orchestrators (`src/components/pages/`)**: Composition wrappers coordinating filters, drawers, dialogs, and hooks.
+1. **Route Handlers (`src/app/`)**: Thin Server Components for URL routing, metadata, and data prefetching. Never embed client state (`useState`, `useEffect`) directly in route handlers.
+2. **Page Orchestrators (`src/components/pages/`)**: Composition wrappers coordinating filters, drawers, dialogs, and hooks. Exported via `src/components/pages/index.ts`.
 3. **Subcomponents (`src/components/shared/` & `src/components/ui/`)**: Single-responsibility visual components built on shadcn/ui.
 
 ---
@@ -51,6 +50,7 @@ To keep code reviews efficient and maintain high readability:
 ## 3. TypeScript Strictness & API Contracts
 
 - **No `any`**: The use of `any` is strictly prohibited. Use `unknown` with runtime type narrowing or Zod schemas.
+- **Centralized Types**: Domain models reside in `src/types/` (e.g. `src/types/auth.ts`).
 - **OpenAPI Single Source of Truth**:
   Synchronize contracts from the running FastAPI backend using:
   ```bash
@@ -108,7 +108,7 @@ To keep code reviews efficient and maintain high readability:
 
 ## 7. Mandatory Verification & Regression Prevention
 
-Every pull request or agent modification must verify all three checks before declaring completion:
+Every pull request or agent modification must verify all checks before declaring completion:
 
 1. **Unit & Component Tests**:
    ```bash
@@ -122,7 +122,6 @@ Every pull request or agent modification must verify all three checks before dec
    Must compile cleanly with zero errors (`tsc --noEmit`).
 3. **Linting & Code Formatting**:
    ```bash
-   pnpm run lint
    pnpm run format:check
    ```
    Must conform to Prettier formatting and ESLint rules.

@@ -5,10 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { registerSchema, type RegisterFormData } from "../schemas/auth-schemas";
 import { useAuth } from "../context/auth-context";
+import { AuthErrorBanner } from "./auth-error-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,17 +74,7 @@ export function RegisterForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       {/* Server Error Alert Banner */}
       {serverError && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive dark:border-destructive/50"
-        >
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <div className="flex-1 leading-relaxed">
-            <span className="font-semibold">Registration failed: </span>
-            {serverError}
-          </div>
-        </div>
+        <AuthErrorBanner title="Registration failed" message={serverError} />
       )}
 
       {/* Full Name Field */}
