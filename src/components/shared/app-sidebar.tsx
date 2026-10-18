@@ -13,10 +13,14 @@ import {
   ChevronRight,
   Workflow,
   Plus,
+  ShieldCheck,
+  LayoutDashboard,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/ui-store";
+import { useAuth } from "@/modules/auth/context/auth-context";
 
 export interface NavItem {
   title: string;
@@ -47,6 +51,24 @@ const mainNavItems: NavItem[] = [
   },
 ];
 
+const adminNavItems: NavItem[] = [
+  {
+    title: "Overview",
+    href: "/admin/overview",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Users",
+    href: "/admin/users",
+    icon: Users,
+  },
+  {
+    title: "Organizations",
+    href: "/admin/organizations",
+    icon: Building2,
+  },
+];
+
 export function AppSidebar({
   className,
   isMobile = false,
@@ -58,7 +80,9 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const { isSidebarCollapsed, toggleSidebar } = useUiStore();
+  const { user } = useAuth();
   const collapsed = !isMobile && isSidebarCollapsed;
+  const isSuperuser = Boolean(user?.is_superuser);
 
   return (
     <aside
@@ -130,29 +154,65 @@ export function AppSidebar({
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-1">
-        {mainNavItems.map((item) => {
-          const isActive = pathname?.includes(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavClick}
-              className={cn(
-                "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",
-                isActive
-                  ? "bg-sidebar-active font-semibold text-sidebar-active-foreground"
-                  : "text-sidebar-foreground hover:bg-secondary hover:text-foreground",
-                collapsed && "justify-center px-0 py-2.5"
-              )}
-              title={collapsed ? item.title : undefined}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="truncate">{item.title}</span>}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-1">
+        <div className="space-y-1">
+          {mainNavItems.map((item) => {
+            const isActive = pathname?.includes(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavClick}
+                className={cn(
+                  "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",
+                  isActive
+                    ? "bg-sidebar-active font-semibold text-sidebar-active-foreground"
+                    : "text-sidebar-foreground hover:bg-secondary hover:text-foreground",
+                  collapsed && "justify-center px-0 py-2.5"
+                )}
+                title={collapsed ? item.title : undefined}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="truncate">{item.title}</span>}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Administration Section (visible for confirmed superusers) */}
+        {isSuperuser && (
+          <div className="space-y-1 border-t border-border/60 pt-3">
+            {!collapsed && (
+              <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <ShieldCheck className="h-3 w-3 text-primary" />
+                <span>Administration</span>
+              </div>
+            )}
+            {adminNavItems.map((item) => {
+              const isActive = pathname?.includes(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavClick}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",
+                    isActive
+                      ? "bg-sidebar-active font-semibold text-sidebar-active-foreground"
+                      : "text-sidebar-foreground hover:bg-secondary hover:text-foreground",
+                    collapsed && "justify-center px-0 py-2.5"
+                  )}
+                  title={collapsed ? item.title : undefined}
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-primary" />
+                  {!collapsed && <span className="truncate">{item.title}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Footer Info */}
