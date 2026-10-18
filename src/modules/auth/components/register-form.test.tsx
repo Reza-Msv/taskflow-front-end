@@ -166,7 +166,7 @@ describe("RegisterForm", () => {
       expect(toast.success).toHaveBeenCalledWith(
         "Account created successfully! Please sign in with your credentials."
       );
-      expect(pushMock).toHaveBeenCalledWith("/en/login?registered=true");
+      expect(pushMock).toHaveBeenCalledWith("/en/login");
       expect(pushMock).not.toHaveBeenCalledWith("/en/projects");
     });
   });

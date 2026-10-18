@@ -53,8 +53,8 @@ export function RegisterForm() {
           ? "حساب کاربری شما با موفقیت ایجاد شد. لطفاً وارد شوید."
           : "Account created successfully! Please sign in with your credentials."
       );
-      const loginUrl = `/${currentLocale}/login?registered=true${
-        redirectParam ? `&redirect=${encodeURIComponent(redirectParam)}` : ""
+      const loginUrl = `/${currentLocale}/login${
+        redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : ""
       }`;
       router.push(loginUrl);
     } catch (err) {
@@ -75,7 +75,14 @@ export function RegisterForm() {
   }`;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSubmit(onSubmit)(e);
+      }}
+      className="space-y-4"
+      noValidate
+    >
       {/* Server Error Alert Banner */}
       {serverError && (
         <AuthErrorBanner title="Registration failed" message={serverError} />

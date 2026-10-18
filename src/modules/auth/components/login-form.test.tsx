@@ -6,6 +6,14 @@ import { LoginForm } from "./login-form";
 import { AuthProvider } from "../context/auth-context";
 import { authService } from "../services/auth-service";
 import { ApiClientError } from "@/services/api-client";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
@@ -132,6 +140,7 @@ describe("LoginForm", () => {
       expect(alert).toHaveTextContent(
         "The email or password you entered is incorrect."
       );
+      expect(toast.error).toHaveBeenCalledWith("Email or password is wrong");
     });
   });
 
@@ -166,7 +175,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("displays registration success banner when registered=true query param is present", async () => {
+  it("does not display inline registration banner (toast is used instead)", async () => {
     mockSearchParams = new URLSearchParams("registered=true");
 
     render(
@@ -176,9 +185,8 @@ describe("LoginForm", () => {
     );
 
     await waitFor(() => {
-      const banner = screen.getByRole("status");
-      expect(banner).toBeInTheDocument();
-      expect(banner).toHaveTextContent(/account created/i);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByText(/account created/i)).not.toBeInTheDocument();
     });
   });
 
