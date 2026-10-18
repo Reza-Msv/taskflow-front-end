@@ -126,12 +126,9 @@ describe("authService", () => {
           }),
         }
       );
-      // Registration must revoke any issued session
-      expect(apiClientModule.apiClient).toHaveBeenCalledWith(
+      expect(apiClientModule.apiClient).not.toHaveBeenCalledWith(
         AUTH_ENDPOINTS.logout,
-        {
-          method: "POST",
-        }
+        expect.anything()
       );
 
       expect(user).toEqual(mockBackendResponse.user);

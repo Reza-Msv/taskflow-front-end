@@ -2,10 +2,18 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { RegisterForm } from "./register-form";
 import { AuthProvider } from "../context/auth-context";
 import { authService } from "../services/auth-service";
 import { ApiClientError } from "@/services/api-client";
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
@@ -155,6 +163,9 @@ describe("RegisterForm", () => {
         password: "password123",
         confirmPassword: "password123",
       });
+      expect(toast.success).toHaveBeenCalledWith(
+        "Account created successfully! Please sign in with your credentials."
+      );
       expect(pushMock).toHaveBeenCalledWith("/en/login?registered=true");
       expect(pushMock).not.toHaveBeenCalledWith("/en/projects");
     });
