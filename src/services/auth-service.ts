@@ -91,7 +91,6 @@ export const authService = {
           body: JSON.stringify(payload),
         }
       );
-
       // Invalidate any session issued upon registration to ensure the user must explicitly sign in
       try {
         await authService.logout();
