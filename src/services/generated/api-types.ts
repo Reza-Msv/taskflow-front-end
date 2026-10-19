@@ -238,93 +238,62 @@ export interface ValidationError {
   ctx?: unknown;
 }
 
-// ==========================================
-// Task Management & Kanban Board Interfaces
-// ==========================================
-
-export type WorkItemType = "task" | "bug" | "story" | "epic" | "subtask";
-export type WorkItemPriority = "lowest" | "low" | "medium" | "high" | "urgent";
-
-export interface WorkItemResponse {
+export interface ProjectBrief {
   id: string;
-  project_id: string;
+  name: string;
+  key: string;
   organization_id: string;
-  sequence_number: number;
+  is_private: boolean;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  key: string;
+  organization_id: string;
+  is_private: boolean;
+  role: string;
+  total_tasks: number;
+  assigned_tasks: number;
+}
+
+export interface DashboardSummaryResponse {
+  total_projects: number;
+  projects: ProjectSummary[];
+  status_counts: Record<string, number>;
+  assigned_tasks_count: number;
+  in_progress_tasks_count: number;
+  completed_tasks_count: number;
+  overdue_tasks_count: number;
+}
+
+export interface WorkItemDashboardItem {
+  id: string;
   issue_key: string;
-  type: WorkItemType | string;
+  type: string;
   title: string;
-  description?: string | null;
   status: string;
-  priority: WorkItemPriority | string;
-  parent_id?: string | null;
-  reporter_id?: string | null;
-  assignee_id?: string | null;
-  sprint_id?: string | null;
+  priority: string;
+  due_date: string | null;
+  estimated_points: number | null;
   rank: string;
-  due_date?: string | null;
-  estimated_points?: number | null;
-  version: number;
   created_at: string;
   updated_at: string;
+  project: ProjectBrief;
+  is_overdue: boolean;
 }
 
-export interface WorkItemListResponse {
-  items: WorkItemResponse[];
+export interface WorkItemListDashboardResponse {
+  items: WorkItemDashboardItem[];
+  total: number;
   page: number;
   page_size: number;
-  total: number;
-  total_pages?: number;
+  total_pages: number;
 }
 
-export interface WorkItemCreateRequest {
-  title: string;
-  description?: string | null;
-  type?: WorkItemType | string;
-  priority?: WorkItemPriority | string;
-  status?: string | null;
-  assignee_id?: string | null;
-  parent_id?: string | null;
-  due_date?: string | null;
-  estimated_points?: number | null;
-  rank?: string | null;
-}
-
-export interface WorkItemUpdateRequest {
-  title?: string | null;
-  description?: string | null;
-  priority?: WorkItemPriority | string | null;
-  assignee_id?: string | null;
-  parent_id?: string | null;
-  due_date?: string | null;
-  estimated_points?: number | null;
-  version?: number | null;
-}
-
-export interface TaskStatusMoveRequest {
-  status: string;
-  rank?: string | null;
-  version?: number | null;
-}
-
-export interface WorkflowStatusResponse {
-  id: string;
-  project_id?: string | null;
-  name: string;
-  category: "todo" | "in_progress" | "done" | "cancelled" | string;
-  position: number;
-  is_default: boolean;
-}
-
-export interface KanbanColumn {
-  status: WorkflowStatusResponse;
-  tasks?: WorkItemResponse[];
-  total_tasks: number;
-}
-
-export interface KanbanBoardResponse {
-  project_id: string;
-  columns: KanbanColumn[];
-  total_tasks: number;
+export interface OverdueUpcomingTasksResponse {
+  overdue_tasks: WorkItemDashboardItem[];
+  upcoming_tasks: WorkItemDashboardItem[];
 }
 
 export interface UserActivityActor {
@@ -333,21 +302,26 @@ export interface UserActivityActor {
   full_name: string;
 }
 
-export interface WorkItemActivityResponse {
+export interface UserActivityItem {
   id: string;
-  work_item_id: string;
-  user_id?: string | null;
-  field: string;
+  activity_type: string;
+  field?: string | null;
   old_value?: string | null;
   new_value?: string | null;
   created_at: string;
-  user?: UserActivityActor | null;
+  work_item_id?: string | null;
+  work_item_key?: string | null;
+  work_item_title?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
+  actor?: UserActivityActor | null;
+  details?: string | null;
 }
 
-export interface WorkItemHistoryListResponse {
-  items: WorkItemActivityResponse[];
+export interface UserActivityListResponse {
+  items: UserActivityItem[];
+  total: number;
   page: number;
   page_size: number;
-  total: number;
-  total_pages?: number;
+  total_pages: number;
 }
