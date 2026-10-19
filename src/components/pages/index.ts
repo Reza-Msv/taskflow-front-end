@@ -5,3 +5,4 @@ export { ProjectBoardPage } from "./project-board-page";
 export { AdminOverviewPage } from "./admin-overview-page";
 export { AdminUsersPage } from "./admin-users-page";
 export { AdminOrganizationsPage } from "./admin-organizations-page";
+export { DashboardPage } from "./dashboard-page";

@@ -30,6 +30,11 @@ export interface NavItem {
 
 const mainNavItems: NavItem[] = [
   {
+    title: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
     title: "Projects",
     href: "/projects",
     icon: FolderKanban,
