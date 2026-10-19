@@ -9,3 +9,4 @@ export { OrganizationsPage } from "./organizations-page";
 export { OrganizationDetailsPage } from "./organization-details-page";
 export { OrganizationProjectsPage } from "./organization-projects-page";
 export { ProjectDetailsPage } from "./project-details-page";
+export { DashboardPage } from "./dashboard-page";
