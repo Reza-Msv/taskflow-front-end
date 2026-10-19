@@ -336,7 +336,11 @@ export function ProjectDetailsPage({
             <Button
               variant="default"
               size="sm"
-              onClick={() => router.push(`/projects/${project.id}/board`)}
+              onClick={() =>
+                router.push(
+                  `/organizations/${organizationId}/projects/${project.id}/board`
+                )
+              }
               className="gap-1.5"
             >
               <FolderKanban className="h-4 w-4" />
