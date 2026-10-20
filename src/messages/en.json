@@ -78,5 +78,29 @@
     "orgSlug": "Slug",
     "cannotDeactivateSelf": "You cannot deactivate your own account.",
     "accessDenied": "Access Denied"
+  },
+  "Error": {
+    "title": "Something went wrong",
+    "subtitle": "An unexpected error occurred while processing your request.",
+    "tryAgain": "Try again",
+    "backToDashboard": "Go to Dashboard",
+    "backToHome": "Back to home",
+    "errorReference": "Error Reference ID",
+    "technicalDetails": "Technical details",
+    "copyError": "Copy error details",
+    "copied": "Copied to clipboard"
+  },
+  "NotFound": {
+    "code": "404",
+    "title": "Page not found",
+    "subtitle": "The page you are looking for doesn't exist, has been removed, or is temporarily unavailable.",
+    "backToHome": "Back to home",
+    "backToDashboard": "Go to Dashboard",
+    "viewProjects": "View Projects",
+    "goBack": "Go Back"
+  },
+  "Loading": {
+    "title": "Loading TaskFlow",
+    "subtitle": "Preparing your workspace and syncing data..."
   }
 }

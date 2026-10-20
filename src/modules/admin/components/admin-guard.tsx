@@ -15,6 +15,12 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, user, refreshSession } = useAuth();
   const [isVerifying, setIsVerifying] = useState(!user);
 
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      setIsVerifying(false);
+    }
+  }, [user, isAuthenticated]);
+
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const currentLocaleRef = useRef(currentLocale);
@@ -22,13 +28,13 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   const hasVerifiedOnMountRef = useRef(false);
 
   useEffect(() => {
-    if (hasVerifiedOnMountRef.current) return;
-    hasVerifiedOnMountRef.current = true;
-
     if (user && isAuthenticated) {
       setIsVerifying(false);
       return;
     }
+
+    if (hasVerifiedOnMountRef.current) return;
+    hasVerifiedOnMountRef.current = true;
 
     let cancelled = false;
 
