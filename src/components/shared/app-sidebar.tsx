@@ -30,6 +30,9 @@ export interface NavItem {
 
 const mainNavItems: NavItem[] = [
   {
+    title: "Organizations",
+    href: "/organizations",
+    icon: Building2,
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,

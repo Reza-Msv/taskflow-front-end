@@ -55,9 +55,8 @@ describe("AppSidebar Admin Navigation", () => {
     const overviewLink = screen.getByRole("link", { name: /overview/i });
     expect(overviewLink).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /users/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /organizations/i })
-    ).toBeInTheDocument();
+    const orgLinks = screen.getAllByRole("link", { name: /organizations/i });
+    expect(orgLinks.length).toBeGreaterThanOrEqual(1);
 
     // Verify active class on current path /admin/overview
     expect(overviewLink).toHaveClass("bg-sidebar-active");
