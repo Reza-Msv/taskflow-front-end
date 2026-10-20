@@ -120,8 +120,9 @@ export interface ProjectBrief {
   id: string;
   name: string;
   key: string;
+  organization_id?: string;
   is_private: boolean;
-  role: string;
+  role?: string;
 }
 
 export interface ProjectCreateRequest {
@@ -238,25 +239,6 @@ export interface ValidationError {
   ctx?: unknown;
 }
 
-export interface ProjectBrief {
-  id: string;
-  name: string;
-  key: string;
-  organization_id: string;
-  is_private: boolean;
-}
-
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  key: string;
-  organization_id: string;
-  is_private: boolean;
-  role: string;
-  total_tasks: number;
-  assigned_tasks: number;
-}
-
 export interface DashboardSummaryResponse {
   total_projects: number;
   projects: ProjectSummary[];
@@ -325,3 +307,112 @@ export interface UserActivityListResponse {
   page_size: number;
   total_pages: number;
 }
+
+// ==========================================
+// Task Management & Kanban Board Interfaces
+// ==========================================
+
+export type WorkItemType = "task" | "bug" | "story" | "epic" | "subtask";
+export type WorkItemPriority = "lowest" | "low" | "medium" | "high" | "urgent";
+
+export interface WorkItemResponse {
+  id: string;
+  project_id: string;
+  organization_id: string;
+  sequence_number: number;
+  issue_key: string;
+  type: WorkItemType | string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: WorkItemPriority | string;
+  parent_id?: string | null;
+  reporter_id?: string | null;
+  assignee_id?: string | null;
+  sprint_id?: string | null;
+  rank: string;
+  due_date?: string | null;
+  estimated_points?: number | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkItemListResponse {
+  items: WorkItemResponse[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages?: number;
+}
+
+export interface WorkItemCreateRequest {
+  title: string;
+  description?: string | null;
+  type?: WorkItemType | string;
+  priority?: WorkItemPriority | string;
+  status?: string | null;
+  assignee_id?: string | null;
+  parent_id?: string | null;
+  due_date?: string | null;
+  estimated_points?: number | null;
+  rank?: string | null;
+}
+
+export interface WorkItemUpdateRequest {
+  title?: string | null;
+  description?: string | null;
+  priority?: WorkItemPriority | string | null;
+  assignee_id?: string | null;
+  parent_id?: string | null;
+  due_date?: string | null;
+  estimated_points?: number | null;
+  version?: number | null;
+}
+
+export interface TaskStatusMoveRequest {
+  status: string;
+  rank?: string | null;
+  version?: number | null;
+}
+
+export interface WorkflowStatusResponse {
+  id: string;
+  project_id?: string | null;
+  name: string;
+  category: "todo" | "in_progress" | "done" | "cancelled" | string;
+  position: number;
+  is_default: boolean;
+}
+
+export interface KanbanColumn {
+  status: WorkflowStatusResponse;
+  tasks?: WorkItemResponse[];
+  total_tasks: number;
+}
+
+export interface KanbanBoardResponse {
+  project_id: string;
+  columns: KanbanColumn[];
+  total_tasks: number;
+}
+
+export interface WorkItemActivityResponse {
+  id: string;
+  work_item_id: string;
+  user_id?: string | null;
+  field: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  created_at: string;
+  user?: UserActivityActor | null;
+}
+
+export interface WorkItemHistoryListResponse {
+  items: WorkItemActivityResponse[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages?: number;
+}
+

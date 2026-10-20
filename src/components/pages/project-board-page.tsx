@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { ArrowLeft, Plus, RefreshCw, AlertCircle } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { KanbanBoard } from "@/components/shared/kanban-board";
@@ -35,6 +35,8 @@ export function ProjectBoardPage({
   projectId,
 }: ProjectBoardPageProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = pathname?.split("/")[1] || "en";
 
   const [board, setBoard] = useState<KanbanBoardResponse | null>(null);
   const [project, setProject] = useState<ProjectResponse | null>(null);
@@ -77,7 +79,7 @@ export function ProjectBoardPage({
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         if (err.status === 401) {
-          router.push("/login");
+          router.push(`/${currentLocale}/login`);
           return;
         }
         setError(err.message);
@@ -340,7 +342,7 @@ export function ProjectBoardPage({
               size="sm"
               onClick={() =>
                 router.push(
-                  `/organizations/${organizationId}/projects/${projectId}`
+                  `/${currentLocale}/organizations/${organizationId}/projects/${projectId}`
                 )
               }
             >
@@ -359,7 +361,7 @@ export function ProjectBoardPage({
     <PageContainer>
       <div className="mb-4">
         <Link
-          href={`/organizations/${organizationId}/projects/${projectId}`}
+          href={`/${currentLocale}/organizations/${organizationId}/projects/${projectId}`}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />

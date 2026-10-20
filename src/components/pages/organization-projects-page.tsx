@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   FolderKanban,
   Plus,
@@ -57,6 +57,8 @@ export function OrganizationProjectsPage({
   organizationId?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = pathname?.split("/")[1] || "en";
   const { currentOrganization, setCurrentOrganization } =
     useOrganizationStore();
 
@@ -247,7 +249,7 @@ export function OrganizationProjectsPage({
       setCurrentOrganization(target);
     }
     if (organizationId) {
-      router.push(`/organizations/${orgId}/projects`);
+      router.push(`/${currentLocale}/organizations/${orgId}/projects`);
     }
   };
 
@@ -424,7 +426,7 @@ export function OrganizationProjectsPage({
                   className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                   onClick={() =>
                     router.push(
-                      `/organizations/${project.organization_id}/projects/${project.id}`
+                      `/${currentLocale}/organizations/${project.organization_id}/projects/${project.id}`
                     )
                   }
                 >
@@ -436,7 +438,9 @@ export function OrganizationProjectsPage({
                   variant="default"
                   size="sm"
                   className="gap-1.5 text-xs"
-                  onClick={() => router.push(`/projects/${project.id}/board`)}
+                  onClick={() =>
+                    router.push(`/${currentLocale}/projects/${project.id}/board`)
+                  }
                 >
                   <FolderKanban className="h-3.5 w-3.5" />
                   <span>Board</span>

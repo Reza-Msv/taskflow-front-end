@@ -149,6 +149,7 @@ export function AppSidebar({
       <div className="p-3">
         {collapsed ? (
           <Button
+            type="button"
             size="icon"
             className="h-9 w-full rounded-lg"
             title="Create Task"
@@ -157,7 +158,10 @@ export function AppSidebar({
             <Plus className="h-4 w-4" />
           </Button>
         ) : (
-          <Button className="h-9 w-full justify-start gap-2 rounded-lg px-3 text-xs font-semibold">
+          <Button
+            type="button"
+            className="h-9 w-full justify-start gap-2 rounded-lg px-3 text-xs font-semibold"
+          >
             <Plus className="h-4 w-4 shrink-0" />
             <span>Create Task</span>
           </Button>
@@ -167,45 +171,20 @@ export function AppSidebar({
       {/* Navigation Links */}
       <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-1">
         <div className="space-y-1">
-          {mainNavItems.map((item) => {
-            const localizedHref = `/${currentLocale}${item.href}`;
-            const isActive =
-              pathname === localizedHref || pathname?.startsWith(`${localizedHref}/`);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={localizedHref}
-                onClick={onNavClick}
-                className={cn(
-                  "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",
-                  isActive
-                    ? "bg-sidebar-active font-semibold text-sidebar-active-foreground"
-                    : "text-sidebar-foreground hover:bg-secondary hover:text-foreground",
-                  collapsed && "justify-center px-0 py-2.5"
-                )}
-                title={collapsed ? item.title : undefined}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="truncate">{item.title}</span>}
-              </Link>
-            );
-          })}
-        </div>
+          {(() => {
+            const activeItem = mainNavItems
+              .filter((item) => {
+                const localizedHref = `/${currentLocale}${item.href}`;
+                return (
+                  pathname === localizedHref ||
+                  pathname?.startsWith(`${localizedHref}/`)
+                );
+              })
+              .sort((a, b) => b.href.length - a.href.length)[0];
 
-        {/* Administration Section (visible for confirmed superusers) */}
-        {isSuperuser && (
-          <div className="space-y-1 border-t border-border/60 pt-3">
-            {!collapsed && (
-              <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <ShieldCheck className="h-3 w-3 text-primary" />
-                <span>Administration</span>
-              </div>
-            )}
-            {adminNavItems.map((item) => {
+            return mainNavItems.map((item) => {
               const localizedHref = `/${currentLocale}${item.href}`;
-              const isActive =
-                pathname === localizedHref || pathname?.startsWith(`${localizedHref}/`);
+              const isActive = activeItem?.href === item.href;
               const Icon = item.icon;
               return (
                 <Link
@@ -221,11 +200,58 @@ export function AppSidebar({
                   )}
                   title={collapsed ? item.title : undefined}
                 >
-                  <Icon className="h-4 w-4 shrink-0 text-primary" />
+                  <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span className="truncate">{item.title}</span>}
                 </Link>
               );
-            })}
+            });
+          })()}
+        </div>
+
+        {/* Administration Section (visible for confirmed superusers) */}
+        {isSuperuser && (
+          <div className="space-y-1 border-t border-border/60 pt-3">
+            {!collapsed && (
+              <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <ShieldCheck className="h-3 w-3 text-primary" />
+                <span>Administration</span>
+              </div>
+            )}
+            {(() => {
+              const activeAdminItem = adminNavItems
+                .filter((item) => {
+                  const localizedHref = `/${currentLocale}${item.href}`;
+                  return (
+                    pathname === localizedHref ||
+                    pathname?.startsWith(`${localizedHref}/`)
+                  );
+                })
+                .sort((a, b) => b.href.length - a.href.length)[0];
+
+              return adminNavItems.map((item) => {
+                const localizedHref = `/${currentLocale}${item.href}`;
+                const isActive = activeAdminItem?.href === item.href;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={localizedHref}
+                    onClick={onNavClick}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",
+                      isActive
+                        ? "bg-sidebar-active font-semibold text-sidebar-active-foreground"
+                        : "text-sidebar-foreground hover:bg-secondary hover:text-foreground",
+                      collapsed && "justify-center px-0 py-2.5"
+                    )}
+                    title={collapsed ? item.title : undefined}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    {!collapsed && <span className="truncate">{item.title}</span>}
+                  </Link>
+                );
+              });
+            })()}
           </div>
         )}
       </nav>

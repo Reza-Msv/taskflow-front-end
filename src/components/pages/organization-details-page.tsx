@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Building2,
   Users,
@@ -73,6 +73,8 @@ export function OrganizationDetailsPage({
   organizationId: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = pathname?.split("/")[1] || "en";
   const { user } = useAuth();
 
   const [org, setOrg] = useState<OrganizationResponse | null>(null);
@@ -212,7 +214,7 @@ export function OrganizationDetailsPage({
     try {
       await organizationService.deleteOrganization(organizationId);
       toast.success("Organization deleted successfully");
-      router.push("/organizations");
+      router.push(`/${currentLocale}/organizations`);
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         toast.error(err.message);
@@ -352,7 +354,7 @@ export function OrganizationDetailsPage({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/organizations")}
+              onClick={() => router.push(`/${currentLocale}/organizations`)}
             >
               Back to Organizations
             </Button>
@@ -369,7 +371,7 @@ export function OrganizationDetailsPage({
     <PageContainer>
       <div className="mb-4">
         <Link
-          href="/organizations"
+          href={`/${currentLocale}/organizations`}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -385,7 +387,9 @@ export function OrganizationDetailsPage({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/organizations/${org.id}/projects`)}
+              onClick={() =>
+                router.push(`/${currentLocale}/organizations/${org.id}/projects`)
+              }
               className="gap-1.5"
             >
               <FolderKanban className="h-4 w-4" />

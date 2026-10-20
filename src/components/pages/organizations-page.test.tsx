@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: pushMock,
   }),
+  usePathname: () => "/en/organizations",
 }));
 
 describe("OrganizationsPage", () => {

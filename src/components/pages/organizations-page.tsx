@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Building2,
   Plus,
@@ -47,6 +47,8 @@ import { toast } from "sonner";
 
 export function OrganizationsPage() {
   const router = useRouter();
+  const pathname = typeof usePathname === "function" ? usePathname() : "/en";
+  const currentLocale = pathname?.split("/")[1] || "en";
   const { setCurrentOrganization } = useOrganizationStore();
 
   const [organizations, setOrganizations] = useState<OrganizationResponse[]>(
@@ -291,7 +293,7 @@ export function OrganizationsPage() {
                   className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                   onClick={() => {
                     setCurrentOrganization(org);
-                    router.push(`/organizations/${org.id}`);
+                    router.push(`/${currentLocale}/organizations/${org.id}`);
                   }}
                 >
                   <Users className="h-3.5 w-3.5" />
@@ -304,7 +306,9 @@ export function OrganizationsPage() {
                   className="gap-1.5 text-xs"
                   onClick={() => {
                     setCurrentOrganization(org);
-                    router.push(`/organizations/${org.id}/projects`);
+                    router.push(
+                      `/${currentLocale}/organizations/${org.id}/projects`
+                    );
                   }}
                 >
                   <FolderKanban className="h-3.5 w-3.5" />

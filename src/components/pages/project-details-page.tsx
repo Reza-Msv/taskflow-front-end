@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   FolderKanban,
   Users,
@@ -63,6 +63,8 @@ export function ProjectDetailsPage({
   projectId: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = pathname?.split("/")[1] || "en";
   const { user } = useAuth();
 
   const [project, setProject] = useState<ProjectResponse | null>(null);
@@ -186,7 +188,7 @@ export function ProjectDetailsPage({
     try {
       await projectService.deleteProject(organizationId, projectId);
       toast.success("Project deleted successfully");
-      router.push(`/organizations/${organizationId}/projects`);
+      router.push(`/${currentLocale}/organizations/${organizationId}/projects`);
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         toast.error(err.message);
@@ -302,7 +304,9 @@ export function ProjectDetailsPage({
               variant="outline"
               size="sm"
               onClick={() =>
-                router.push(`/organizations/${organizationId}/projects`)
+                router.push(
+                  `/${currentLocale}/organizations/${organizationId}/projects`
+                )
               }
             >
               Back to Projects
@@ -320,7 +324,7 @@ export function ProjectDetailsPage({
     <PageContainer>
       <div className="mb-4">
         <Link
-          href={`/organizations/${organizationId}/projects`}
+          href={`/${currentLocale}/organizations/${organizationId}/projects`}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -338,7 +342,7 @@ export function ProjectDetailsPage({
               size="sm"
               onClick={() =>
                 router.push(
-                  `/organizations/${organizationId}/projects/${project.id}/board`
+                  `/${currentLocale}/organizations/${organizationId}/projects/${project.id}/board`
                 )
               }
               className="gap-1.5"

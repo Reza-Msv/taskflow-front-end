@@ -1,25 +1,34 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useOrganizationStore } from "@/stores/organization-store";
+import { organizationService } from "@/services/organization-service";
 import { ProjectBoardPage } from "@/components/pages";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer } from "@/components/shared/page-container";
 
 export default function Page() {
   const params = useParams();
-  const router = useRouter();
-  const { currentOrganization } = useOrganizationStore();
+  const { currentOrganization, setCurrentOrganization } = useOrganizationStore();
   const projectId = params?.projectId as string;
+  const [loadingOrg, setLoadingOrg] = useState(!currentOrganization);
 
   useEffect(() => {
-    if (currentOrganization && projectId) {
-      router.replace(
-        `/organizations/${currentOrganization.id}/projects/${projectId}/board`
-      );
+    if (!currentOrganization) {
+      organizationService
+        .getMyOrganizations({ page_size: 1 })
+        .then((res) => {
+          if (res.items && res.items.length > 0) {
+            setCurrentOrganization(res.items[0]);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          setLoadingOrg(false);
+        });
     }
-  }, [currentOrganization, projectId, router]);
+  }, [currentOrganization, setCurrentOrganization]);
 
   if (currentOrganization && projectId) {
     return (
@@ -30,11 +39,23 @@ export default function Page() {
     );
   }
 
+  if (loadingOrg) {
+    return (
+      <PageContainer>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
+      </PageContainer>
+    );
+  }
+
   return (
     <PageContainer>
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="py-12 text-center">
+        <p className="text-sm text-muted-foreground">
+          No organization found. Please create or select an organization to view this project board.
+        </p>
       </div>
     </PageContainer>
   );

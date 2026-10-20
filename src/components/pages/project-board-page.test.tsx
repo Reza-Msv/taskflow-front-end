@@ -20,6 +20,7 @@ const mockRouter = {
 };
 vi.mock("next/navigation", () => ({
   useRouter: () => mockRouter,
+  usePathname: () => "/en/projects/default/board",
 }));
 
 // Mock sonner toast

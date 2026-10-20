@@ -4,8 +4,12 @@ import { render, screen } from "@testing-library/react";
 import { AppSidebar } from "./app-sidebar";
 import * as authContextModule from "@/modules/auth/context/auth-context";
 
+import { usePathname } from "next/navigation";
+
+let mockCurrentPathname = "/en/admin/overview";
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/en/admin/overview",
+  usePathname: () => mockCurrentPathname,
 }));
 
 describe("AppSidebar Admin Navigation", () => {
@@ -65,5 +69,33 @@ describe("AppSidebar Admin Navigation", () => {
 
     // Verify active class on current path /admin/overview
     expect(overviewLink).toHaveClass("bg-sidebar-active");
+  });
+
+  it("activates only the Kanban Board link and not the Projects link when on /en/projects/default/board", () => {
+    mockCurrentPathname = "/en/projects/default/board";
+
+    vi.spyOn(authContextModule, "useAuth").mockReturnValue({
+      user: {
+        id: "u-1",
+        email: "user@test.com",
+        is_superuser: false,
+      },
+      isLoading: false,
+      isAuthenticated: true,
+      error: null,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+      clearError: vi.fn(),
+    });
+
+    render(<AppSidebar />);
+
+    const kanbanLink = screen.getByRole("link", { name: /kanban board/i });
+    const projectsLink = screen.getByRole("link", { name: /^projects$/i });
+
+    expect(kanbanLink).toHaveClass("bg-sidebar-active");
+    expect(projectsLink).not.toHaveClass("bg-sidebar-active");
   });
 });

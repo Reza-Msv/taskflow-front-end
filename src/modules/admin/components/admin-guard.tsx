@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
@@ -13,26 +13,39 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const currentLocale = pathname?.split("/")[1] || "en";
   const { isLoading, isAuthenticated, user, refreshSession } = useAuth();
-  const [isVerifying, setIsVerifying] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(!user);
+
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const currentLocaleRef = useRef(currentLocale);
+  currentLocaleRef.current = currentLocale;
+  const hasVerifiedOnMountRef = useRef(false);
 
   useEffect(() => {
+    if (hasVerifiedOnMountRef.current) return;
+    hasVerifiedOnMountRef.current = true;
+
+    if (user && isAuthenticated) {
+      setIsVerifying(false);
+      return;
+    }
+
     let cancelled = false;
 
     const verify = async () => {
-      setIsVerifying(true);
       try {
         const verifiedUser = await refreshSession();
         if (cancelled) return;
         if (!verifiedUser) {
-          const redirectUrl = `/${currentLocale}/login?redirect=${encodeURIComponent(
-            pathname
+          const redirectUrl = `/${currentLocaleRef.current}/login?redirect=${encodeURIComponent(
+            pathnameRef.current
           )}`;
           router.replace(redirectUrl);
         }
       } catch {
         if (cancelled) return;
-        const redirectUrl = `/${currentLocale}/login?redirect=${encodeURIComponent(
-          pathname
+        const redirectUrl = `/${currentLocaleRef.current}/login?redirect=${encodeURIComponent(
+          pathnameRef.current
         )}`;
         router.replace(redirectUrl);
       } finally {
@@ -47,7 +60,16 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, currentLocale, refreshSession, router]);
+  }, [refreshSession, router, user, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isLoading && !isVerifying && (!isAuthenticated || !user)) {
+      const redirectUrl = `/${currentLocaleRef.current}/login?redirect=${encodeURIComponent(
+        pathnameRef.current
+      )}`;
+      router.replace(redirectUrl);
+    }
+  }, [isLoading, isVerifying, isAuthenticated, user, router]);
 
   if (isLoading || isVerifying) {
     return (
