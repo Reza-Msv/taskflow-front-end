@@ -98,4 +98,28 @@ describe("AppSidebar Admin Navigation", () => {
     expect(kanbanLink).toHaveClass("bg-sidebar-active");
     expect(projectsLink).not.toHaveClass("bg-sidebar-active");
   });
+
+  it("renders My Tasks navigation link pointing to /en/my-tasks", () => {
+    vi.spyOn(authContextModule, "useAuth").mockReturnValue({
+      user: {
+        id: "u-1",
+        email: "user@test.com",
+        is_superuser: false,
+      },
+      isLoading: false,
+      isAuthenticated: true,
+      error: null,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+      clearError: vi.fn(),
+    });
+
+    render(<AppSidebar />);
+
+    const myTasksLink = screen.getByRole("link", { name: /my tasks/i });
+    expect(myTasksLink).toBeInTheDocument();
+    expect(myTasksLink).toHaveAttribute("href", "/en/my-tasks");
+  });
 });
