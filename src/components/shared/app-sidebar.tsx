@@ -30,12 +30,14 @@ export interface NavItem {
 
 const mainNavItems: NavItem[] = [
   {
-    title: "Organizations",
-    href: "/organizations",
-    icon: Building2,
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Organizations",
+    href: "/organizations",
+    icon: Building2,
   },
   {
     title: "Projects",
@@ -87,6 +89,7 @@ export function AppSidebar({
   onNavClick?: () => void;
 }) {
   const pathname = usePathname();
+  const currentLocale = pathname?.split("/")[1] || "en";
   const { isSidebarCollapsed, toggleSidebar } = useUiStore();
   const { user } = useAuth();
   const collapsed = !isMobile && isSidebarCollapsed;
@@ -107,7 +110,7 @@ export function AppSidebar({
       {/* Brand Header */}
       <div className="flex h-14 items-center justify-between border-b border-border px-3.5">
         <Link
-          href="/"
+          href={`/${currentLocale}`}
           className="flex items-center gap-2.5 overflow-hidden"
           onClick={onNavClick}
         >
@@ -165,12 +168,14 @@ export function AppSidebar({
       <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-1">
         <div className="space-y-1">
           {mainNavItems.map((item) => {
-            const isActive = pathname?.includes(item.href);
+            const localizedHref = `/${currentLocale}${item.href}`;
+            const isActive =
+              pathname === localizedHref || pathname?.startsWith(`${localizedHref}/`);
             const Icon = item.icon;
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={localizedHref}
                 onClick={onNavClick}
                 className={cn(
                   "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",
@@ -198,12 +203,14 @@ export function AppSidebar({
               </div>
             )}
             {adminNavItems.map((item) => {
-              const isActive = pathname?.includes(item.href);
+              const localizedHref = `/${currentLocale}${item.href}`;
+              const isActive =
+                pathname === localizedHref || pathname?.startsWith(`${localizedHref}/`);
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={localizedHref}
                   onClick={onNavClick}
                   className={cn(
                     "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors duration-150",

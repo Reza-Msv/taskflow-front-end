@@ -54,9 +54,14 @@ describe("AppSidebar Admin Navigation", () => {
     expect(screen.getByText("Administration")).toBeInTheDocument();
     const overviewLink = screen.getByRole("link", { name: /overview/i });
     expect(overviewLink).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /users/i })).toBeInTheDocument();
+    expect(overviewLink).toHaveAttribute("href", "/en/admin/overview");
+    expect(screen.getByRole("link", { name: /users/i })).toHaveAttribute("href", "/en/admin/users");
     const orgLinks = screen.getAllByRole("link", { name: /organizations/i });
     expect(orgLinks.length).toBeGreaterThanOrEqual(1);
+
+    const dashboardLink = screen.getByRole("link", { name: /dashboard/i });
+    expect(dashboardLink).toBeInTheDocument();
+    expect(dashboardLink).toHaveAttribute("href", "/en/dashboard");
 
     // Verify active class on current path /admin/overview
     expect(overviewLink).toHaveClass("bg-sidebar-active");
