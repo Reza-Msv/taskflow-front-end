@@ -277,8 +277,8 @@ describe("ProjectBoardPage", () => {
         projId,
         "task-1",
         {
-          status: "in_progress",
-          rank: null,
+          target_status: "in_progress",
+          target_rank: null,
           version: 1,
         }
       );

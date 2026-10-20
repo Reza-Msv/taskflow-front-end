@@ -120,6 +120,7 @@ export interface ProjectBrief {
   id: string;
   name: string;
   key: string;
+  organization_id: string;
   is_private: boolean;
   role: string;
 }
@@ -238,23 +239,104 @@ export interface ValidationError {
   ctx?: unknown;
 }
 
-export interface ProjectBrief {
+export interface WorkItemResponse {
   id: string;
-  name: string;
-  key: string;
   organization_id: string;
-  is_private: boolean;
+  project_id: string;
+  issue_key: string;
+  type: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  due_date?: string | null;
+  estimated_points?: number | null;
+  assignee_id?: string | null;
+  reporter_id?: string | null;
+  rank: string;
+  version: number;
+  sequence_number?: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface ProjectSummary {
+export interface WorkItemListResponse {
+  items: WorkItemResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages?: number;
+}
+
+export interface WorkItemCreateRequest {
+  title: string;
+  type?: string;
+  status?: string;
+  priority?: string;
+  description?: string | null;
+  due_date?: string | null;
+  estimated_points?: number | null;
+  assignee_id?: string | null;
+}
+
+export interface WorkItemUpdateRequest {
+  title?: string | null;
+  type?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  description?: string | null;
+  due_date?: string | null;
+  estimated_points?: number | null;
+  assignee_id?: string | null;
+  version?: number;
+}
+
+export interface TaskStatusMoveRequest {
+  target_status: string;
+  target_rank?: string | null;
+  version?: number;
+}
+
+export interface KanbanColumnStatus {
   id: string;
   name: string;
-  key: string;
-  organization_id: string;
-  is_private: boolean;
-  role: string;
-  total_tasks: number;
-  assigned_tasks: number;
+  category: string;
+  order?: number;
+  position?: number;
+  is_default?: boolean;
+}
+
+export interface KanbanColumnResponse {
+  status: KanbanColumnStatus;
+  tasks: WorkItemResponse[];
+  total_tasks?: number;
+}
+
+export interface KanbanBoardResponse {
+  project_id: string;
+  columns: KanbanColumnResponse[];
+  total_tasks?: number;
+}
+
+export interface WorkItemActivityResponse {
+  id: string;
+  work_item_id: string;
+  activity_type?: string;
+  field?: string | null;
+  old_value?: string | null;
+  new_value?: string | null;
+  created_at: string;
+  actor?: UserActivityActor | null;
+  user?: UserActivityActor | null;
+  details?: string | null;
+}
+
+export interface WorkItemHistoryListResponse {
+  items: WorkItemActivityResponse[];
+  total: number;
+  page: number;
+  page_size?: number;
+  total_pages?: number;
 }
 
 export interface DashboardSummaryResponse {

@@ -131,32 +131,34 @@ export function ProjectBoardPage({
     ) as KanbanBoardResponse;
 
     // Optimistically update board columns
-    const updatedColumns = (board.columns || []).map((col) => {
-      // Remove task if present in this column
-      const currentTasks = col.tasks || [];
-      const filteredTasks = currentTasks.filter((t) => t.id !== task.id);
+    const updatedColumns = (board.columns || []).map(
+      (col: KanbanBoardResponse["columns"][number]) => {
+        // Remove task if present in this column
+        const currentTasks = col.tasks || [];
+        const filteredTasks = currentTasks.filter(
+          (t: WorkItemResponse) => t.id !== task.id
+        );
 
-      // If this is target column, append the moved task with updated status
-      if (col.status.id === targetStatus) {
-        const updatedTask: WorkItemResponse = {
-          ...task,
-          status: targetStatus,
-          rank: targetRank || task.rank,
-          version: (task.version || 1) + 1,
-        };
+        // If this is target column, append the moved task with updated status
+        if (col.status.id === targetStatus) {
+          const updatedTask: WorkItemResponse = {
+            ...task,
+            status: targetStatus,
+            rank: targetRank || task.rank,
+            version: (task.version || 1) + 1,
+          };
+          return {
+            ...col,
+            tasks: [...filteredTasks, updatedTask],
+          };
+        }
+
         return {
           ...col,
-          tasks: [...filteredTasks, updatedTask],
-          total_tasks: filteredTasks.length + 1,
+          tasks: filteredTasks,
         };
       }
-
-      return {
-        ...col,
-        tasks: filteredTasks,
-        total_tasks: filteredTasks.length,
-      };
-    });
+    );
 
     setBoard({
       ...board,
@@ -169,22 +171,24 @@ export function ProjectBoardPage({
         projectId,
         task.id,
         {
-          status: targetStatus,
-          rank: targetRank,
+          target_status: targetStatus,
+          target_rank: targetRank,
           version: task.version,
         }
       );
       // Synchronize latest server version & details
-      setBoard((currentBoard) => {
+      setBoard((currentBoard: KanbanBoardResponse | null) => {
         if (!currentBoard) return currentBoard;
         return {
           ...currentBoard,
-          columns: (currentBoard.columns || []).map((col) => ({
-            ...col,
-            tasks: (col.tasks || []).map((t) =>
-              t.id === task.id ? updated : t
-            ),
-          })),
+          columns: (currentBoard.columns || []).map(
+            (col: KanbanBoardResponse["columns"][number]) => ({
+              ...col,
+              tasks: (col.tasks || []).map((t: WorkItemResponse) =>
+                t.id === task.id ? updated : t
+              ),
+            })
+          ),
         };
       });
       toast.success(`Moved ${task.issue_key} to ${targetStatus}`);
@@ -280,22 +284,29 @@ export function ProjectBoardPage({
   });
 
   // Extract available statuses
-  const availableStatuses = (board?.columns || []).map((c) => ({
-    id: c.status.id,
-    name: c.status.name,
-  }));
+  const availableStatuses = (board?.columns || []).map(
+    (c: KanbanBoardResponse["columns"][number]) => ({
+      id: c.status.id,
+      name: c.status.name,
+    })
+  );
+
+  const totalTasks = (board?.columns || []).reduce(
+    (acc, col) => acc + (col.tasks?.length || 0),
+    0
+  );
 
   // Filter tasks in board according to search and status filter
   const filteredBoard: KanbanBoardResponse = board
     ? {
         ...board,
         columns: (board.columns || [])
-          .filter((col) =>
+          .filter((col: KanbanBoardResponse["columns"][number]) =>
             statusFilter === "all" ? true : col.status.id === statusFilter
           )
-          .map((col) => ({
+          .map((col: KanbanBoardResponse["columns"][number]) => ({
             ...col,
-            tasks: (col.tasks || []).filter((t) => {
+            tasks: (col.tasks || []).filter((t: WorkItemResponse) => {
               if (!search.trim()) return true;
               const q = search.toLowerCase();
               return (
@@ -306,7 +317,7 @@ export function ProjectBoardPage({
             }),
           })),
       }
-    : { project_id: projectId, columns: [], total_tasks: 0 };
+    : { project_id: projectId, columns: [] };
 
   if (isLoading) {
     return (
@@ -369,7 +380,7 @@ export function ProjectBoardPage({
 
       <PageHeader
         title={`${project?.name || "Project"} Board`}
-        description={`Key [${project?.key || ""}] • ${board.total_tasks} active work items`}
+        description={`Key [${project?.key || ""}] • ${totalTasks} active work items`}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -405,7 +416,10 @@ export function ProjectBoardPage({
         onStatusFilterChange={setStatusFilter}
         statusOptions={[
           { value: "all", label: "All Columns" },
-          ...availableStatuses.map((s) => ({ value: s.id, label: s.name })),
+          ...availableStatuses.map((s: { id: string; name: string }) => ({
+            value: s.id,
+            label: s.name,
+          })),
         ]}
       />
 

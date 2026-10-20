@@ -227,8 +227,8 @@ describe("taskService", () => {
   describe("moveTask", () => {
     it("moves task to new status column and rank", async () => {
       const payload = {
-        status: "in_progress",
-        rank: "0|000002:",
+        target_status: "in_progress",
+        target_rank: "0|000002:",
         version: 1,
       };
       const movedTask: WorkItemResponse = {

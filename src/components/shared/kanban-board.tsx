@@ -51,15 +51,17 @@ export function KanbanBoard({
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
 
-  const availableStatuses = columns.map((col) => ({
-    id: col.status.id,
-    name: col.status.name,
-  }));
+  const availableStatuses = columns.map(
+    (col: KanbanBoardResponse["columns"][number]) => ({
+      id: col.status.id,
+      name: col.status.name,
+    })
+  );
 
   const findTaskById = (taskId: string): WorkItemResponse | undefined => {
     for (const col of columns) {
       const tasks = col.tasks || [];
-      const match = tasks.find((t) => t.id === taskId);
+      const match = tasks.find((t: WorkItemResponse) => t.id === taskId);
       if (match) return match;
     }
     return undefined;
@@ -104,7 +106,7 @@ export function KanbanBoard({
     <div className={cn("flex w-full min-w-0 flex-col gap-4", className)}>
       {/* Mobile Column Selector Tabs */}
       <div className="flex items-center gap-1 overflow-x-auto border-b border-border pb-1 md:hidden">
-        {columns.map((col) => {
+        {columns.map((col: KanbanBoardResponse["columns"][number]) => {
           const colTasks = col.tasks || [];
           const isSelected = selectedColumnMobile === col.status.id;
           const dotColor =
@@ -143,7 +145,7 @@ export function KanbanBoard({
           columns.length >= 4 && "md:grid-cols-2 lg:grid-cols-4"
         )}
       >
-        {columns.map((col) => {
+        {columns.map((col: KanbanBoardResponse["columns"][number]) => {
           const colTasks = col.tasks || [];
           const isHiddenOnMobile = selectedColumnMobile !== col.status.id;
           const isDragOver = dragOverColumnId === col.status.id;
@@ -197,7 +199,7 @@ export function KanbanBoard({
                     No tasks in {col.status.name}
                   </div>
                 ) : (
-                  colTasks.map((task) => (
+                  colTasks.map((task: WorkItemResponse) => (
                     <TaskCard
                       key={task.id}
                       task={task}

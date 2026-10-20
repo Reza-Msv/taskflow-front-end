@@ -97,48 +97,48 @@ export function TaskModal({
       estimatedPoints.trim() === "" ? null : Number(estimatedPoints);
 
     if (isEditing && task) {
-      const payload: WorkItemUpdateRequest = {
+      const rawUpdatePayload = {
         title: title.trim(),
-        description: description.trim() || null,
+        description: description.trim() || undefined,
         priority,
-        assignee_id: assigneeId || null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        estimated_points: parsedPoints,
-        version: task.version,
+        assignee_id: assigneeId || undefined,
+        due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
+        estimated_points: parsedPoints ?? undefined,
+        version: task.version ?? undefined,
       };
 
-      const valRes = updateTaskSchema.safeParse(payload);
+      const valRes = updateTaskSchema.safeParse(rawUpdatePayload);
       if (!valRes.success) {
         setFormError(valRes.error.issues[0]?.message || "Invalid input");
         return;
       }
 
       try {
-        await onSubmitUpdate(task.id, valRes.data);
+        await onSubmitUpdate(task.id, valRes.data as WorkItemUpdateRequest);
         onClose();
       } catch (err: any) {
         setFormError(err?.message || "Failed to update task");
       }
     } else {
-      const payload: WorkItemCreateRequest = {
+      const rawCreatePayload = {
         title: title.trim(),
-        description: description.trim() || null,
-        status,
+        description: description.trim() || undefined,
+        status: status || undefined,
         priority,
         type,
-        assignee_id: assigneeId || null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        estimated_points: parsedPoints,
+        assignee_id: assigneeId || undefined,
+        due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
+        estimated_points: parsedPoints ?? undefined,
       };
 
-      const valRes = createTaskSchema.safeParse(payload);
+      const valRes = createTaskSchema.safeParse(rawCreatePayload);
       if (!valRes.success) {
         setFormError(valRes.error.issues[0]?.message || "Invalid input");
         return;
       }
 
       try {
-        await onSubmitCreate(valRes.data);
+        await onSubmitCreate(valRes.data as WorkItemCreateRequest);
         onClose();
       } catch (err: any) {
         setFormError(err?.message || "Failed to create task");

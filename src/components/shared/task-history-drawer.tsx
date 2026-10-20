@@ -165,7 +165,11 @@ export function TaskHistoryDrawer({
                   ? formatDate(act.created_at)
                   : "Unknown date";
                 const actorName =
-                  act.user?.full_name || act.user?.email || "System";
+                  act.actor?.full_name ||
+                  act.actor?.email ||
+                  act.user?.full_name ||
+                  act.user?.email ||
+                  "System";
 
                 return (
                   <div key={act.id} className="group relative text-xs">
