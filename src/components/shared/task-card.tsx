@@ -111,48 +111,50 @@ export function TaskCard({
             </Badge>
 
             {/* Quick Actions Menu (accessible alternative to drag-and-drop) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Actions for ${task.issue_key}`}
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                {onViewHistory && (
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewHistory();
-                    }}
-                    className="gap-2 text-xs"
+            {(Boolean(onViewHistory) || availableStatuses.some((s) => s.id !== task.status)) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Actions for ${task.issue_key}`}
                   >
-                    <History className="h-3.5 w-3.5" />
-                    <span>View Activity History</span>
-                  </DropdownMenuItem>
-                )}
-                {availableStatuses
-                  .filter((s) => s.id !== task.status)
-                  .map((s) => (
+                    <MoreVertical className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {onViewHistory && (
                     <DropdownMenuItem
-                      key={s.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onMoveToStatus?.(s.id);
+                        onViewHistory();
                       }}
                       className="gap-2 text-xs"
                     >
-                      <MoveRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>Move to {s.name}</span>
+                      <History className="h-3.5 w-3.5" />
+                      <span>View Activity History</span>
                     </DropdownMenuItem>
-                  ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  )}
+                  {availableStatuses
+                    .filter((s) => s.id !== task.status)
+                    .map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMoveToStatus?.(s.id);
+                        }}
+                        className="gap-2 text-xs"
+                      >
+                        <MoveRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>Move to {s.name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 

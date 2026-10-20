@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Menu, Search, Bell, LogOut, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { NotificationBell } from "@/components/shared/notification-bell";
 import { useUiStore } from "@/stores/ui-store";
 import { useAuth } from "@/modules/auth/context/auth-context";
 import {
@@ -24,6 +25,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { AppSidebar } from "@/components/shared/app-sidebar";
+import { GlobalSearchDialog } from "@/components/shared/global-search-dialog";
 import { toast } from "sonner";
 
 export function AppHeader({
@@ -39,6 +41,19 @@ export function AppHeader({
 
   const { isMobileSidebarOpen, setMobileSidebarOpen } = useUiStore();
   const { user, isAuthenticated, logout } = useAuth();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Global Cmd+K / Ctrl+K keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -90,18 +105,12 @@ export function AppHeader({
             size="icon"
             className="h-9 w-9 text-muted-foreground hover:text-foreground"
             aria-label="Search items"
+            onClick={() => setIsSearchOpen(true)}
+            title="Search (Cmd+K)"
           >
             <Search className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
-            aria-label="Notifications"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" />
-          </Button>
+          <NotificationBell />
           <ThemeToggle />
 
           {/* User Profile / Logout or Sign In */}
@@ -181,6 +190,12 @@ export function AppHeader({
           <AppSidebar isMobile onNavClick={() => setMobileSidebarOpen(false)} />
         </SheetContent>
       </Sheet>
+
+      {/* Global Search Dialog */}
+      <GlobalSearchDialog
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
     </>
   );
 }

@@ -73,4 +73,23 @@ describe("AppHeader Auth Integration", () => {
       expect(pushMock).toHaveBeenCalledWith("/en/login");
     });
   });
+
+  it("opens global search dialog when Search button is clicked", async () => {
+    vi.spyOn(authService, "getCurrentUser").mockResolvedValueOnce(null);
+
+    const user = userEvent.setup();
+
+    render(
+      <AuthProvider>
+        <AppHeader title="Projects" />
+      </AuthProvider>
+    );
+
+    const searchBtn = screen.getByRole("button", { name: "Search items" });
+    await user.click(searchBtn);
+
+    expect(
+      await screen.findByPlaceholderText(/search projects, tasks, or issue keys/i)
+    ).toBeInTheDocument();
+  });
 });

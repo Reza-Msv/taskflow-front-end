@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Building2,
+  CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,11 @@ const mainNavItems: NavItem[] = [
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "My Tasks",
+    href: "/my-tasks",
+    icon: CheckSquare,
   },
   {
     title: "Organizations",

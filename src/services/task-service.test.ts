@@ -325,4 +325,147 @@ describe("taskService", () => {
       expect(result).toEqual(mockHistory);
     });
   });
+
+  describe("Phase 4 task details and collaboration", () => {
+    it("fetches comprehensive task detail", async () => {
+      const mockDetail = {
+        id: mockTaskId,
+        title: "Detailed Task",
+        subtasks: [],
+        checklists: [],
+        attachments: [],
+        subtasks_count: 0,
+        checklists_count: 0,
+        completed_checklists_count: 0,
+        attachments_count: 0,
+        comments_count: 0,
+      };
+
+      vi.mocked(apiClient).mockResolvedValueOnce(mockDetail);
+
+      const result = await taskService.getTaskDetail(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId
+      );
+
+      expect(apiClient).toHaveBeenCalledWith(
+        TASK_ENDPOINTS.task(mockOrgId, mockProjectId, mockTaskId),
+        { method: "GET" }
+      );
+      expect(result).toEqual(mockDetail);
+    });
+
+    it("manages checklist items", async () => {
+      const mockItem = {
+        id: "check-1",
+        work_item_id: mockTaskId,
+        title: "Test checklist",
+        is_completed: false,
+        position: 0,
+      };
+
+      vi.mocked(apiClient).mockResolvedValueOnce({ items: [mockItem], total: 1 });
+      const list = await taskService.getChecklists(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId
+      );
+      expect(list.items).toHaveLength(1);
+
+      vi.mocked(apiClient).mockResolvedValueOnce(mockItem);
+      const created = await taskService.createChecklistItem(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId,
+        { title: "Test checklist" }
+      );
+      expect(created.title).toBe("Test checklist");
+
+      vi.mocked(apiClient).mockResolvedValueOnce({
+        ...mockItem,
+        is_completed: true,
+      });
+      const updated = await taskService.updateChecklistItem(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId,
+        "check-1",
+        { is_completed: true }
+      );
+      expect(updated.is_completed).toBe(true);
+
+      vi.mocked(apiClient).mockResolvedValueOnce(undefined);
+      await taskService.deleteChecklistItem(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId,
+        "check-1"
+      );
+      expect(apiClient).toHaveBeenCalledWith(
+        TASK_ENDPOINTS.checklist(mockOrgId, mockProjectId, mockTaskId, "check-1"),
+        { method: "DELETE" }
+      );
+    });
+
+    it("creates subtasks", async () => {
+      const mockSubtask = {
+        id: "sub-1",
+        title: "Child subtask",
+        parent_id: mockTaskId,
+      };
+
+      vi.mocked(apiClient).mockResolvedValueOnce(mockSubtask);
+      const created = await taskService.createSubtask(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId,
+        { title: "Child subtask" }
+      );
+
+      expect(apiClient).toHaveBeenCalledWith(
+        TASK_ENDPOINTS.subtasks(mockOrgId, mockProjectId, mockTaskId),
+        {
+          method: "POST",
+          body: JSON.stringify({ title: "Child subtask" }),
+        }
+      );
+      expect(created.title).toBe("Child subtask");
+    });
+
+    it("uploads and deletes attachments", async () => {
+      const mockAttachment = {
+        id: "att-1",
+        file_name: "design.png",
+        file_size: 1024,
+      };
+
+      vi.mocked(apiClient).mockResolvedValueOnce(mockAttachment);
+      const file = new File(["dummy content"], "design.png", {
+        type: "image/png",
+      });
+
+      const uploaded = await taskService.uploadAttachment(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId,
+        file
+      );
+
+      expect(uploaded.file_name).toBe("design.png");
+
+      vi.mocked(apiClient).mockResolvedValueOnce(undefined);
+      await taskService.deleteAttachment(
+        mockOrgId,
+        mockProjectId,
+        mockTaskId,
+        "att-1"
+      );
+
+      expect(apiClient).toHaveBeenCalledWith(
+        TASK_ENDPOINTS.attachment(mockOrgId, mockProjectId, mockTaskId, "att-1"),
+        { method: "DELETE" }
+      );
+    });
+  });
 });

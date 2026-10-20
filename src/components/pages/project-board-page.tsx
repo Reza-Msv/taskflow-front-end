@@ -2,19 +2,23 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Plus, RefreshCw, AlertCircle } from "lucide-react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { ArrowLeft, Plus, RefreshCw, AlertCircle, Kanban, LayoutList } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { KanbanBoard } from "@/components/shared/kanban-board";
 import { FilterBar } from "@/components/shared/filter-bar";
+import { AdvancedTaskFilters } from "@/components/shared/advanced-task-filters";
+import { TaskListView } from "@/components/shared/task-list-view";
 import { TaskModal } from "@/components/shared/task-modal";
 import { TaskHistoryDrawer } from "@/components/shared/task-history-drawer";
+import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { taskService } from "@/services/task-service";
 import { projectService } from "@/services/project-service";
 import { ApiClientError } from "@/services/api-client";
 import { toast } from "sonner";
+import type { TaskFilterCriteria } from "@/services/saved-filter-service";
 import type {
   KanbanBoardResponse,
   WorkItemResponse,
@@ -38,15 +42,32 @@ export function ProjectBoardPage({
   const pathname = usePathname();
   const currentLocale = pathname?.split("/")[1] || "en";
 
+  const searchParams = useSearchParams();
+  const [viewMode, setViewMode] = useState<"board" | "list">(
+    (searchParams.get("view") as "board" | "list") || "board"
+  );
+
   const [board, setBoard] = useState<KanbanBoardResponse | null>(null);
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [members, setMembers] = useState<ProjectMembershipResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Filters (Kanban view)
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Advanced Filters (List view)
+  const [listFilters, setListFilters] = useState<TaskFilterCriteria>({
+    search: searchParams.get("search") || "",
+    status: searchParams.get("status") || "all",
+    priority: searchParams.get("priority") || "all",
+    assignee_id: searchParams.get("assignee") || "all",
+    due_preset: (searchParams.get("due") as TaskFilterCriteria["due_preset"]) || "all",
+    sort_by: searchParams.get("sort_by") || "issue_key",
+    sort_dir: (searchParams.get("sort_dir") as "asc" | "desc") || "asc",
+  });
+  const [listPage, setListPage] = useState(1);
 
   // Task Modal state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -55,6 +76,10 @@ export function ProjectBoardPage({
   );
   const [modalDefaultStatus, setModalDefaultStatus] = useState("todo");
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+
+  // Task Detail Sheet state (Phase 4)
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
 
   // Task History Drawer state
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -94,6 +119,15 @@ export function ProjectBoardPage({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Open task if 'task' parameter is present in URL
+  useEffect(() => {
+    const taskParam = searchParams.get("task");
+    if (taskParam) {
+      setDetailTaskId(taskParam);
+      setIsDetailSheetOpen(true);
+    }
+  }, [searchParams]);
 
   // Load task activity history
   const loadTaskHistory = async (task: WorkItemResponse) => {
@@ -287,7 +321,7 @@ export function ProjectBoardPage({
     name: c.status.name,
   }));
 
-  // Filter tasks in board according to search and status filter
+  // Filter tasks in board according to search and status filter (Kanban view)
   const filteredBoard: KanbanBoardResponse = board
     ? {
         ...board,
@@ -309,6 +343,85 @@ export function ProjectBoardPage({
           })),
       }
     : { project_id: projectId, columns: [], total_tasks: 0 };
+
+  // Filter tasks for List view
+  const allBoardTasks: WorkItemResponse[] = (board?.columns || []).flatMap(
+    (col) => col.tasks || []
+  );
+
+  const filteredListTasks = allBoardTasks.filter((t) => {
+    if (listFilters.search?.trim()) {
+      const q = listFilters.search.toLowerCase();
+      const matches =
+        t.title.toLowerCase().includes(q) ||
+        t.issue_key.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q));
+      if (!matches) return false;
+    }
+    if (listFilters.status && listFilters.status !== "all") {
+      if (t.status !== listFilters.status) return false;
+    }
+    if (listFilters.priority && listFilters.priority !== "all") {
+      if (t.priority?.toLowerCase() !== listFilters.priority.toLowerCase()) {
+        return false;
+      }
+    }
+    if (listFilters.assignee_id && listFilters.assignee_id !== "all") {
+      if (t.assignee_id !== listFilters.assignee_id) return false;
+    }
+    if (listFilters.due_preset && listFilters.due_preset !== "all") {
+      const now = new Date();
+      if (listFilters.due_preset === "overdue") {
+        if (!t.due_date || new Date(t.due_date) >= now) return false;
+      } else if (listFilters.due_preset === "due_soon") {
+        if (!t.due_date) return false;
+        const due = new Date(t.due_date);
+        const inSevenDays = new Date(now.getTime() + 7 * 86400000);
+        if (due < now || due > inSevenDays) return false;
+      } else if (listFilters.due_preset === "no_due_date") {
+        if (t.due_date) return false;
+      }
+    }
+    return true;
+  });
+
+  filteredListTasks.sort((a, b) => {
+    const dir = listFilters.sort_dir === "desc" ? -1 : 1;
+    if (listFilters.sort_by === "title") {
+      return a.title.localeCompare(b.title) * dir;
+    }
+    if (listFilters.sort_by === "status") {
+      return a.status.localeCompare(b.status) * dir;
+    }
+    if (listFilters.sort_by === "priority") {
+      return (a.priority || "").localeCompare(b.priority || "") * dir;
+    }
+    if (listFilters.sort_by === "due_date") {
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return (
+        (new Date(a.due_date).getTime() - new Date(b.due_date).getTime()) * dir
+      );
+    }
+    return a.issue_key.localeCompare(b.issue_key) * dir;
+  });
+
+  const listPageSize = 25;
+  const listTotalPages = Math.max(
+    1,
+    Math.ceil(filteredListTasks.length / listPageSize)
+  );
+  const paginatedListTasks = filteredListTasks.slice(
+    (listPage - 1) * listPageSize,
+    listPage * listPageSize
+  );
+
+  const handleViewModeChange = (mode: "board" | "list") => {
+    setViewMode(mode);
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    params.set("view", mode);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   if (isLoading) {
     return (
@@ -374,6 +487,30 @@ export function ProjectBoardPage({
         description={`Key [${project?.key || ""}] • ${board.total_tasks} active work items`}
         actions={
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
+              <Button
+                variant={viewMode === "board" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handleViewModeChange("board")}
+                className="h-7 px-2.5 text-xs gap-1.5"
+                title="Board View"
+              >
+                <Kanban className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Board</span>
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handleViewModeChange("list")}
+                className="h-7 px-2.5 text-xs gap-1.5"
+                title="List View"
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">List</span>
+              </Button>
+            </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -400,34 +537,86 @@ export function ProjectBoardPage({
         }
       />
 
-      <FilterBar
-        searchValue={search}
-        onSearchChange={setSearch}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        statusOptions={[
-          { value: "all", label: "All Columns" },
-          ...availableStatuses.map((s) => ({ value: s.id, label: s.name })),
-        ]}
-      />
+      {viewMode === "board" ? (
+        <>
+          <FilterBar
+            searchValue={search}
+            onSearchChange={setSearch}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statusOptions={[
+              { value: "all", label: "All Columns" },
+              ...availableStatuses.map((s) => ({ value: s.id, label: s.name })),
+            ]}
+          />
 
-      <div className="mt-4">
-        <KanbanBoard
-          board={filteredBoard}
-          assigneeMap={assigneeMap}
-          onTaskClick={(task) => {
-            setSelectedTask(task);
-            setIsTaskModalOpen(true);
-          }}
-          onAddTask={(statusId) => {
-            setSelectedTask(null);
-            setModalDefaultStatus(statusId);
-            setIsTaskModalOpen(true);
-          }}
-          onMoveTask={handleMoveTask}
-          onViewHistory={(task) => loadTaskHistory(task)}
-        />
-      </div>
+          <div className="mt-4">
+            <KanbanBoard
+              board={filteredBoard}
+              assigneeMap={assigneeMap}
+              onTaskClick={(task) => {
+                setDetailTaskId(task.id);
+                setIsDetailSheetOpen(true);
+              }}
+              onAddTask={(statusId) => {
+                setSelectedTask(null);
+                setModalDefaultStatus(statusId);
+                setIsTaskModalOpen(true);
+              }}
+              onMoveTask={handleMoveTask}
+              onViewHistory={(task) => loadTaskHistory(task)}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <AdvancedTaskFilters
+            filters={listFilters}
+            onFiltersChange={(f) => {
+              setListFilters(f);
+              setListPage(1);
+            }}
+            statusOptions={[
+              { value: "all", label: "All Statuses" },
+              ...availableStatuses.map((s) => ({ value: s.id, label: s.name })),
+            ]}
+            assigneeOptions={members.map((m) => ({
+              value: m.user_id,
+              label: m.user?.full_name || m.user?.email || "User",
+            }))}
+            showAssigneeFilter={true}
+            showProjectFilter={false}
+            syncWithUrl={true}
+          />
+
+          <TaskListView
+            tasks={paginatedListTasks}
+            onTaskClick={(taskId) => {
+              setDetailTaskId(taskId);
+              setIsDetailSheetOpen(true);
+            }}
+            assigneeMap={assigneeMap}
+            sortField={listFilters.sort_by}
+            sortDirection={listFilters.sort_dir}
+            onSortChange={(field) => {
+              const nextDir =
+                listFilters.sort_by === field && listFilters.sort_dir === "asc"
+                  ? "desc"
+                  : "asc";
+              setListFilters((prev) => ({
+                ...prev,
+                sort_by: field,
+                sort_dir: nextDir,
+              }));
+            }}
+            currentPage={listPage}
+            totalPages={listTotalPages}
+            totalItems={filteredListTasks.length}
+            pageSize={listPageSize}
+            onPageChange={setListPage}
+          />
+        </div>
+      )}
 
       {/* Task Create / Edit Dialog */}
       <TaskModal
@@ -444,6 +633,22 @@ export function ProjectBoardPage({
         onSubmitUpdate={handleUpdateTask}
         onDeleteTask={handleDeleteTask}
         isSubmitting={isSubmittingTask}
+      />
+
+      {/* Task Details & Collaboration Sheet (Phase 4) */}
+      <TaskDetailSheet
+        isOpen={isDetailSheetOpen}
+        onClose={() => {
+          setIsDetailSheetOpen(false);
+          setDetailTaskId(null);
+        }}
+        taskId={detailTaskId}
+        organizationId={organizationId}
+        projectId={projectId}
+        onTaskUpdated={() => loadData()}
+        onTaskDeleted={() => loadData()}
+        members={memberOptions}
+        availableStatuses={availableStatuses}
       />
 
       {/* Activity History Drawer */}
