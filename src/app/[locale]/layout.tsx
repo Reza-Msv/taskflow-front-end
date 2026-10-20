@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   title: "TaskFlow — Enterprise Work Management",
   description:
     "Open-source, self-hostable project and sprint management platform",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default async function RootLayout({

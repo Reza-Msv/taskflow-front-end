@@ -60,6 +60,17 @@ export function RegisterForm() {
     } catch (err) {
       if (err instanceof ApiClientError) {
         setServerError(err.message);
+        if (
+          err.code === "EMAIL_ALREADY_EXISTS" ||
+          err.code === "USER_ALREADY_EXISTS" ||
+          err.status === 409
+        ) {
+          toast.error(
+            currentLocale === "fa"
+              ? "کاربری با این آدرس ایمیل قبلاً ثبت نام کرده است."
+              : err.message || "A user with this email address already exists."
+          );
+        }
       } else if (err instanceof Error) {
         setServerError(err.message);
       } else {

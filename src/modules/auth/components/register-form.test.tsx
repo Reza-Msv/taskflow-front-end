@@ -125,6 +125,52 @@ describe("RegisterForm", () => {
       expect(alert).toHaveTextContent(
         "An account with this email address already exists."
       );
+      expect(toast.error).toHaveBeenCalledWith(
+        "An account with this email address already exists."
+      );
+    });
+  });
+
+  it("triggers toast and alert banner when code is EMAIL_ALREADY_EXISTS", async () => {
+    vi.spyOn(authService, "register").mockRejectedValueOnce(
+      new ApiClientError(409, {
+        error: {
+          code: "EMAIL_ALREADY_EXISTS",
+          message: "A user with this email address already exists.",
+          details: { email: "rezamousavi458@gmail.com" },
+          request_id: "req_d3d0accc7c32",
+        },
+      })
+    );
+
+    const user = userEvent.setup();
+
+    render(
+      <AuthProvider>
+        <RegisterForm />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByLabelText(/email address/i),
+      "rezamousavi458@gmail.com"
+    );
+    await user.type(screen.getByLabelText(/^password/i), "password123");
+    await user.type(screen.getByLabelText(/confirm password/i), "password123");
+    await user.click(screen.getByRole("button", { name: /^create account$/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "A user with this email address already exists."
+      );
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent(
+        "A user with this email address already exists."
+      );
     });
   });
 
