@@ -9,6 +9,7 @@ import { KanbanBoard } from "@/components/shared/kanban-board";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { TaskModal } from "@/components/shared/task-modal";
 import { TaskHistoryDrawer } from "@/components/shared/task-history-drawer";
+import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { taskService } from "@/services/task-service";
@@ -55,6 +56,10 @@ export function ProjectBoardPage({
   );
   const [modalDefaultStatus, setModalDefaultStatus] = useState("todo");
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+
+  // Task Detail Sheet state (Phase 4)
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
 
   // Task History Drawer state
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -416,8 +421,8 @@ export function ProjectBoardPage({
           board={filteredBoard}
           assigneeMap={assigneeMap}
           onTaskClick={(task) => {
-            setSelectedTask(task);
-            setIsTaskModalOpen(true);
+            setDetailTaskId(task.id);
+            setIsDetailSheetOpen(true);
           }}
           onAddTask={(statusId) => {
             setSelectedTask(null);
@@ -444,6 +449,22 @@ export function ProjectBoardPage({
         onSubmitUpdate={handleUpdateTask}
         onDeleteTask={handleDeleteTask}
         isSubmitting={isSubmittingTask}
+      />
+
+      {/* Task Details & Collaboration Sheet (Phase 4) */}
+      <TaskDetailSheet
+        isOpen={isDetailSheetOpen}
+        onClose={() => {
+          setIsDetailSheetOpen(false);
+          setDetailTaskId(null);
+        }}
+        taskId={detailTaskId}
+        organizationId={organizationId}
+        projectId={projectId}
+        onTaskUpdated={() => loadData()}
+        onTaskDeleted={() => loadData()}
+        members={memberOptions}
+        availableStatuses={availableStatuses}
       />
 
       {/* Activity History Drawer */}

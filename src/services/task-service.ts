@@ -7,6 +7,14 @@ import type {
   TaskStatusMoveRequest,
   KanbanBoardResponse,
   WorkItemHistoryListResponse,
+  WorkItemDetailResponse,
+  ChecklistItemResponse,
+  ChecklistItemCreateRequest,
+  ChecklistItemUpdateRequest,
+  ChecklistListResponse,
+  AttachmentResponse,
+  AttachmentListResponse,
+  SubtaskCreateRequest,
 } from "@/services/generated/api-types";
 
 export interface TaskQueryParams {
@@ -35,6 +43,18 @@ export const TASK_ENDPOINTS = {
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/move`,
   history: (orgId: string, projectId: string, taskId: string) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/history`,
+  checklists: (orgId: string, projectId: string, taskId: string) =>
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/checklists`,
+  checklist: (orgId: string, projectId: string, taskId: string, itemId: string) =>
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/checklists/${encodeURIComponent(itemId)}`,
+  subtasks: (orgId: string, projectId: string, taskId: string) =>
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/subtasks`,
+  attachments: (orgId: string, projectId: string, taskId: string) =>
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments`,
+  attachment: (orgId: string, projectId: string, taskId: string, attachmentId: string) =>
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(attachmentId)}`,
+  downloadAttachment: (orgId: string, projectId: string, taskId: string, attachmentId: string) =>
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
 } as const;
 
 export const taskService = {
@@ -198,5 +218,191 @@ export const taskService = {
     return apiClient<WorkItemHistoryListResponse>(url, {
       method: "GET",
     });
+  },
+
+  /**
+   * Get comprehensive task details with subtasks, checklists, attachments, counts
+   */
+  async getTaskDetail(
+    orgId: string,
+    projectId: string,
+    taskId: string
+  ): Promise<WorkItemDetailResponse> {
+    return apiClient<WorkItemDetailResponse>(
+      TASK_ENDPOINTS.task(orgId, projectId, taskId),
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  /**
+   * Get checklist items for a task
+   */
+  async getChecklists(
+    orgId: string,
+    projectId: string,
+    taskId: string
+  ): Promise<ChecklistListResponse> {
+    return apiClient<ChecklistListResponse>(
+      TASK_ENDPOINTS.checklists(orgId, projectId, taskId),
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  /**
+   * Create checklist item
+   */
+  async createChecklistItem(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    payload: ChecklistItemCreateRequest
+  ): Promise<ChecklistItemResponse> {
+    return apiClient<ChecklistItemResponse>(
+      TASK_ENDPOINTS.checklists(orgId, projectId, taskId),
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  /**
+   * Update checklist item (title, is_completed, position, assignee_id)
+   */
+  async updateChecklistItem(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    itemId: string,
+    payload: ChecklistItemUpdateRequest
+  ): Promise<ChecklistItemResponse> {
+    return apiClient<ChecklistItemResponse>(
+      TASK_ENDPOINTS.checklist(orgId, projectId, taskId, itemId),
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  /**
+   * Delete checklist item
+   */
+  async deleteChecklistItem(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    itemId: string
+  ): Promise<void> {
+    await apiClient<void>(
+      TASK_ENDPOINTS.checklist(orgId, projectId, taskId, itemId),
+      {
+        method: "DELETE",
+      }
+    );
+  },
+
+  /**
+   * Get subtasks under a task
+   */
+  async getSubtasks(
+    orgId: string,
+    projectId: string,
+    taskId: string
+  ): Promise<WorkItemListResponse> {
+    return apiClient<WorkItemListResponse>(
+      TASK_ENDPOINTS.subtasks(orgId, projectId, taskId),
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  /**
+   * Create a subtask under a parent task
+   */
+  async createSubtask(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    payload: SubtaskCreateRequest
+  ): Promise<WorkItemResponse> {
+    return apiClient<WorkItemResponse>(
+      TASK_ENDPOINTS.subtasks(orgId, projectId, taskId),
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  /**
+   * Get attachments for a task
+   */
+  async getAttachments(
+    orgId: string,
+    projectId: string,
+    taskId: string
+  ): Promise<AttachmentListResponse> {
+    return apiClient<AttachmentListResponse>(
+      TASK_ENDPOINTS.attachments(orgId, projectId, taskId),
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  /**
+   * Upload file attachment (multipart/form-data)
+   */
+  async uploadAttachment(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    file: File
+  ): Promise<AttachmentResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return apiClient<AttachmentResponse>(
+      TASK_ENDPOINTS.attachments(orgId, projectId, taskId),
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+  },
+
+  /**
+   * Delete attachment
+   */
+  async deleteAttachment(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    attachmentId: string
+  ): Promise<void> {
+    await apiClient<void>(
+      TASK_ENDPOINTS.attachment(orgId, projectId, taskId, attachmentId),
+      {
+        method: "DELETE",
+      }
+    );
+  },
+
+  /**
+   * Get attachment download URL
+   */
+  getAttachmentDownloadUrl(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    attachmentId: string
+  ): string {
+    return TASK_ENDPOINTS.downloadAttachment(orgId, projectId, taskId, attachmentId);
   },
 };
