@@ -15,6 +15,7 @@ import {
   FolderKanban,
   Target,
   Sparkles,
+  TrendingUp,
 } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { Button } from "@/components/ui/button";
@@ -59,13 +60,12 @@ export function ProjectScrumPage({
   const currentLocale = pathname?.split("/")[1] || "en";
   const { user } = useAuth();
 
-  const tabParam = (searchParams.get("tab") as
-    | "backlog"
-    | "board"
-    | "sprints"
-    | "metrics"
-    | null) || initialTab;
-  const [activeTab, setActiveTab] = useState<"backlog" | "board" | "sprints" | "metrics">(tabParam);
+  const tabParam =
+    (searchParams.get("tab") as
+      "backlog" | "board" | "sprints" | "metrics" | null) || initialTab;
+  const [activeTab, setActiveTab] = useState<
+    "backlog" | "board" | "sprints" | "metrics"
+  >(tabParam);
 
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [members, setMembers] = useState<ProjectMembershipResponse[]>([]);
@@ -106,7 +106,9 @@ export function ProjectScrumPage({
     try {
       const [projData, membersData, sprintsData] = await Promise.all([
         projectService.getProject(organizationId, projectId),
-        projectService.getMembers(organizationId, projectId, { page_size: 100 }),
+        projectService.getMembers(organizationId, projectId, {
+          page_size: 100,
+        }),
         scrumService.listSprints(organizationId, projectId),
       ]);
 
@@ -114,7 +116,9 @@ export function ProjectScrumPage({
       setMembers(membersData.items || []);
       setSprints(sprintsData.items || []);
 
-      const myMembership = membersData.items?.find((m) => m.user_id === user?.id);
+      const myMembership = membersData.items?.find(
+        (m) => m.user_id === user?.id
+      );
       if (myMembership) {
         setCurrentUserRole(myMembership.role);
       } else if (user?.is_superuser) {
@@ -144,14 +148,14 @@ export function ProjectScrumPage({
     project?.owner_id === user?.id ||
     user?.is_superuser;
 
-  const canModifyTask =
-    currentUserRole !== "viewer" ||
-    canManageProject;
+  const canModifyTask = currentUserRole !== "viewer" || canManageProject;
 
   const activeSprint = sprints.find((s) => s.status === "active") || null;
 
   // Handle Tab Switch
-  const handleTabChange = (newTab: "backlog" | "board" | "sprints" | "metrics") => {
+  const handleTabChange = (
+    newTab: "backlog" | "board" | "sprints" | "metrics"
+  ) => {
     setActiveTab(newTab);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", newTab);
@@ -195,7 +199,9 @@ export function ProjectScrumPage({
       <PageContainer>
         <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 p-8 text-center text-destructive">
           <AlertCircle className="mb-2 h-8 w-8" />
-          <p className="font-semibold">{error || "Project not found or private."}</p>
+          <p className="font-semibold">
+            {error || "Project not found or private."}
+          </p>
           <div className="mt-4 flex gap-2">
             <Button
               variant="outline"
@@ -281,7 +287,7 @@ export function ProjectScrumPage({
             className={cn(
               "flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition-all",
               activeTab === "backlog"
-                ? "border-primary text-foreground font-semibold"
+                ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -295,7 +301,7 @@ export function ProjectScrumPage({
             className={cn(
               "flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition-all",
               activeTab === "board"
-                ? "border-primary text-foreground font-semibold"
+                ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -314,7 +320,7 @@ export function ProjectScrumPage({
             className={cn(
               "flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition-all",
               activeTab === "sprints"
-                ? "border-primary text-foreground font-semibold"
+                ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -331,7 +337,7 @@ export function ProjectScrumPage({
             className={cn(
               "flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition-all",
               activeTab === "metrics"
-                ? "border-primary text-foreground font-semibold"
+                ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -340,15 +346,32 @@ export function ProjectScrumPage({
           </button>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={loadPageData}
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          title="Reload Scrum Workspace"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              router.push(
+                `/${currentLocale}/organizations/${organizationId}/projects/${projectId}/reports`
+              )
+            }
+            className="h-8 gap-1.5 text-xs"
+            title="Open Full Project Analytics"
+          >
+            <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            <span className="hidden sm:inline">Analytics</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={loadPageData}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Reload Scrum Workspace"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {/* Tab View Content */}
