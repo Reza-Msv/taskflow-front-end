@@ -23,6 +23,14 @@ export interface TaskQueryParams {
   priority?: string;
   type?: string;
   search?: string;
+  due_date_from?: string;
+  due_date_to?: string;
+  is_overdue?: boolean;
+  due_soon?: boolean;
+  is_completed?: boolean;
+  label_id?: string;
+  sort_by?: string;
+  sort_dir?: string;
   page?: number;
   page_size?: number;
 }
@@ -45,15 +53,30 @@ export const TASK_ENDPOINTS = {
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/history`,
   checklists: (orgId: string, projectId: string, taskId: string) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/checklists`,
-  checklist: (orgId: string, projectId: string, taskId: string, itemId: string) =>
+  checklist: (
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    itemId: string
+  ) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/checklists/${encodeURIComponent(itemId)}`,
   subtasks: (orgId: string, projectId: string, taskId: string) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/subtasks`,
   attachments: (orgId: string, projectId: string, taskId: string) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments`,
-  attachment: (orgId: string, projectId: string, taskId: string, attachmentId: string) =>
+  attachment: (
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    attachmentId: string
+  ) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(attachmentId)}`,
-  downloadAttachment: (orgId: string, projectId: string, taskId: string, attachmentId: string) =>
+  downloadAttachment: (
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    attachmentId: string
+  ) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
 } as const;
 
@@ -103,6 +126,30 @@ export const taskService = {
     if (params.search?.trim()) {
       searchParams.set("search", params.search.trim());
     }
+    if (params.due_date_from?.trim()) {
+      searchParams.set("due_date_from", params.due_date_from.trim());
+    }
+    if (params.due_date_to?.trim()) {
+      searchParams.set("due_date_to", params.due_date_to.trim());
+    }
+    if (params.is_overdue !== undefined) {
+      searchParams.set("is_overdue", String(params.is_overdue));
+    }
+    if (params.due_soon !== undefined) {
+      searchParams.set("due_soon", String(params.due_soon));
+    }
+    if (params.is_completed !== undefined) {
+      searchParams.set("is_completed", String(params.is_completed));
+    }
+    if (params.label_id?.trim()) {
+      searchParams.set("label_id", params.label_id.trim());
+    }
+    if (params.sort_by?.trim()) {
+      searchParams.set("sort_by", params.sort_by.trim());
+    }
+    if (params.sort_dir?.trim()) {
+      searchParams.set("sort_dir", params.sort_dir.trim());
+    }
 
     const query = searchParams.toString();
     const url = query
@@ -111,6 +158,77 @@ export const taskService = {
 
     return apiClient<WorkItemListResponse>(url, {
       method: "GET",
+    });
+  },
+
+  /**
+   * Fetch tasks for calendar views within a date range
+   */
+  async getCalendarTasks(
+    orgId: string,
+    projectId: string,
+    params: TaskQueryParams = {}
+  ): Promise<WorkItemListResponse> {
+    return this.getTasks(orgId, projectId, {
+      page_size: params.page_size || 100,
+      ...params,
+    });
+  },
+
+  /**
+   * Fetch tasks for timeline/gantt views
+   */
+  async getTimelineTasks(
+    orgId: string,
+    projectId: string,
+    params: TaskQueryParams = {}
+  ): Promise<WorkItemListResponse> {
+    return this.getTasks(orgId, projectId, {
+      page_size: params.page_size || 200,
+      ...params,
+    });
+  },
+
+  /**
+   * Set or update task parent dependency
+   */
+  async setTaskParent(
+    orgId: string,
+    projectId: string,
+    taskId: string,
+    parentId: string | null
+  ): Promise<WorkItemResponse> {
+    return this.updateTask(orgId, projectId, taskId, {
+      parent_id: parentId,
+    });
+  },
+
+  /**
+   * Remove task parent dependency
+   */
+  async removeTaskParent(
+    orgId: string,
+    projectId: string,
+    taskId: string
+  ): Promise<WorkItemResponse> {
+    return this.updateTask(orgId, projectId, taskId, {
+      parent_id: null,
+    });
+  },
+
+  /**
+   * Create a milestone deliverable work item
+   */
+  async createMilestone(
+    orgId: string,
+    projectId: string,
+    payload: { title: string; due_date: string; description?: string }
+  ): Promise<WorkItemResponse> {
+    return this.createTask(orgId, projectId, {
+      title: payload.title,
+      type: "milestone",
+      due_date: payload.due_date,
+      description: payload.description,
     });
   },
 
@@ -403,6 +521,11 @@ export const taskService = {
     taskId: string,
     attachmentId: string
   ): string {
-    return TASK_ENDPOINTS.downloadAttachment(orgId, projectId, taskId, attachmentId);
+    return TASK_ENDPOINTS.downloadAttachment(
+      orgId,
+      projectId,
+      taskId,
+      attachmentId
+    );
   },
 };

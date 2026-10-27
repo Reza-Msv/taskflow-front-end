@@ -286,4 +286,23 @@ describe("ProjectBoardPage", () => {
       );
     });
   });
+
+  it("switches to Calendar and Timeline views", async () => {
+    const user = userEvent.setup();
+    render(<ProjectBoardPage organizationId={orgId} projectId={projId} />);
+
+    await screen.findByText("Setup Figma Tokens");
+
+    // Click Calendar button
+    const calendarBtn = screen.getByRole("button", { name: /Calendar/i });
+    await user.click(calendarBtn);
+
+    expect(screen.getByTestId("calendar-view")).toBeInTheDocument();
+
+    // Click Timeline button
+    const timelineBtn = screen.getByRole("button", { name: /Timeline/i });
+    await user.click(timelineBtn);
+
+    expect(screen.getByTestId("timeline-view")).toBeInTheDocument();
+  });
 });

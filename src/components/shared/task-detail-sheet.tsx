@@ -47,6 +47,10 @@ import {
   Layers,
   ChevronRight,
   AtSign,
+  Link2,
+  Unlink,
+  Network,
+  Flag,
 } from "lucide-react";
 import type {
   WorkItemDetailResponse,
@@ -65,7 +69,9 @@ export interface TaskDetailSheetProps {
   projectId: string;
   isOpen: boolean;
   onClose: () => void;
-  onTaskUpdated?: (updatedTask: WorkItemDetailResponse | WorkItemResponse) => void;
+  onTaskUpdated?: (
+    updatedTask: WorkItemDetailResponse | WorkItemResponse
+  ) => void;
   onTaskDeleted?: (taskId: string) => void;
   members?: Array<{ userId: string; name: string }>;
   availableStatuses?: Array<{ id: string; name: string }>;
@@ -168,7 +174,8 @@ export function TaskDetailSheet({
   // Attachments state
   const [attachments, setAttachments] = useState<AttachmentResponse[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
-  const [attachmentToDelete, setAttachmentToDelete] = useState<AttachmentResponse | null>(null);
+  const [attachmentToDelete, setAttachmentToDelete] =
+    useState<AttachmentResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Comments state
@@ -183,7 +190,9 @@ export function TaskDetailSheet({
 
   // Mention Autocomplete state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionSuggestions, setMentionSuggestions] = useState<MentionableUserResponse[]>([]);
+  const [mentionSuggestions, setMentionSuggestions] = useState<
+    MentionableUserResponse[]
+  >([]);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -193,6 +202,18 @@ export function TaskDetailSheet({
 
   // Delete Task dialog
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Dependencies state
+  const [parentTask, setParentTask] = useState<WorkItemResponse | null>(null);
+  const [isLoadingParent, setIsLoadingParent] = useState(false);
+  const [projectTasksList, setProjectTasksList] = useState<WorkItemResponse[]>(
+    []
+  );
+  const [isLoadingProjectTasks, setIsLoadingProjectTasks] = useState(false);
+  const [selectedPredecessorId, setSelectedPredecessorId] =
+    useState<string>("");
+  const [isUpdatingDependency, setIsUpdatingDependency] = useState(false);
+  const [dependencyError, setDependencyError] = useState<string | null>(null);
 
   // Synchronize activeTaskId when prop taskId changes
   useEffect(() => {
@@ -206,13 +227,29 @@ export function TaskDetailSheet({
       setIsLoading(true);
       setError(null);
       try {
-        const detail = await taskService.getTaskDetail(organizationId, projectId, id);
+        const detail = await taskService.getTaskDetail(
+          organizationId,
+          projectId,
+          id
+        );
         setTask(detail);
         setTitleValue(detail.title);
         setDescValue(detail.description || "");
         setChecklists(detail.checklists || []);
         setSubtasks(detail.subtasks || []);
         setAttachments(detail.attachments || []);
+
+        // Load parent task if parent_id exists
+        if (detail.parent_id) {
+          setIsLoadingParent(true);
+          taskService
+            .getTask(organizationId, projectId, detail.parent_id)
+            .then((p) => setParentTask(p))
+            .catch(() => setParentTask(null))
+            .finally(() => setIsLoadingParent(false));
+        } else {
+          setParentTask(null);
+        }
       } catch (err: unknown) {
         if (err instanceof ApiClientError) {
           setError(err.message);
@@ -226,14 +263,111 @@ export function TaskDetailSheet({
     [organizationId, projectId]
   );
 
+  const loadProjectTasks = useCallback(async () => {
+    setIsLoadingProjectTasks(true);
+    try {
+      const res = await taskService.getTasks(organizationId, projectId, {
+        page_size: 150,
+      });
+      setProjectTasksList(res.items.filter((t) => t.id !== activeTaskId));
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingProjectTasks(false);
+    }
+  }, [organizationId, projectId, activeTaskId]);
+
+  const handleSetPredecessor = async (newParentId: string) => {
+    if (!activeTaskId || !newParentId) return;
+    setIsUpdatingDependency(true);
+    setDependencyError(null);
+    try {
+      const updated = await taskService.setTaskParent(
+        organizationId,
+        projectId,
+        activeTaskId,
+        newParentId
+      );
+      toast.success("Predecessor dependency set");
+      setSelectedPredecessorId("");
+      loadTaskDetails(activeTaskId);
+      onTaskUpdated?.(updated);
+    } catch (err: unknown) {
+      if (err instanceof ApiClientError) {
+        if (
+          err.code === "CIRCULAR_HIERARCHY" ||
+          err.message.toLowerCase().includes("circular")
+        ) {
+          const msg =
+            "Circular hierarchy error: Setting this parent would create a circular dependency cycle.";
+          setDependencyError(msg);
+          toast.error(msg);
+          return;
+        }
+        if (
+          err.code === "INVALID_PARENT" ||
+          err.message.toLowerCase().includes("own parent")
+        ) {
+          const msg = "A task cannot be its own parent.";
+          setDependencyError(msg);
+          toast.error(msg);
+          return;
+        }
+        if (err.code === "CROSS_PROJECT_HIERARCHY") {
+          const msg = "Parent task must belong to the same project.";
+          setDependencyError(msg);
+          toast.error(msg);
+          return;
+        }
+        setDependencyError(err.message);
+        toast.error(err.message);
+      } else {
+        setDependencyError("Failed to set predecessor dependency");
+        toast.error("Failed to set predecessor dependency");
+      }
+    } finally {
+      setIsUpdatingDependency(false);
+    }
+  };
+
+  const handleRemovePredecessor = async () => {
+    if (!activeTaskId) return;
+    setIsUpdatingDependency(true);
+    setDependencyError(null);
+    try {
+      const updated = await taskService.removeTaskParent(
+        organizationId,
+        projectId,
+        activeTaskId
+      );
+      toast.success("Predecessor dependency removed");
+      setParentTask(null);
+      loadTaskDetails(activeTaskId);
+      onTaskUpdated?.(updated);
+    } catch (err: unknown) {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error("Failed to remove predecessor dependency");
+      }
+    } finally {
+      setIsUpdatingDependency(false);
+    }
+  };
+
   // Load Comments
   const loadComments = useCallback(
     async (id: string) => {
       setIsLoadingComments(true);
       try {
-        const res = await collaborationService.getComments(organizationId, projectId, id, {
-          page_size: 50,
-        });
+        const res = await collaborationService.getComments(
+          organizationId,
+          projectId,
+          id,
+          {
+            page_size: 50,
+          }
+        );
         setComments(res.items);
       } catch {
         // Silently handle comments load error
@@ -249,9 +383,14 @@ export function TaskDetailSheet({
     async (id: string) => {
       setIsLoadingActivities(true);
       try {
-        const res = await taskService.getTaskHistory(organizationId, projectId, id, {
-          page_size: 50,
-        });
+        const res = await taskService.getTaskHistory(
+          organizationId,
+          projectId,
+          id,
+          {
+            page_size: 50,
+          }
+        );
         setActivities(res.items || []);
       } catch {
         // Silently handle activity load error
@@ -266,8 +405,9 @@ export function TaskDetailSheet({
     if (isOpen && activeTaskId) {
       loadTaskDetails(activeTaskId);
       loadComments(activeTaskId);
+      loadProjectTasks();
     }
-  }, [isOpen, activeTaskId, loadTaskDetails, loadComments]);
+  }, [isOpen, activeTaskId, loadTaskDetails, loadComments, loadProjectTasks]);
 
   // Navigate to subtask
   const handleNavigateToSubtask = (subtask: WorkItemResponse) => {
@@ -288,7 +428,9 @@ export function TaskDetailSheet({
   };
 
   // Update Task Metadata (Status, Priority, Assignee, Due Date, Points, Title, Description)
-  const handleUpdateTaskField = async (fields: Partial<WorkItemUpdateRequest>) => {
+  const handleUpdateTaskField = async (
+    fields: Partial<WorkItemUpdateRequest>
+  ) => {
     if (!task || !activeTaskId) return;
     setIsSavingMetadata(true);
     try {
@@ -322,7 +464,9 @@ export function TaskDetailSheet({
         activeTaskId,
         { status: newStatus, version: task.version }
       );
-      setTask((prev) => (prev ? { ...prev, ...updated, status: newStatus } : prev));
+      setTask((prev) =>
+        prev ? { ...prev, ...updated, status: newStatus } : prev
+      );
       onTaskUpdated?.(updated);
       toast.success(`Status updated to ${newStatus}`);
     } catch (err: unknown) {
@@ -402,7 +546,9 @@ export function TaskDetailSheet({
     const newStatus = !item.is_completed;
     // Optimistic toggle
     setChecklists((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, is_completed: newStatus } : i))
+      prev.map((i) =>
+        i.id === item.id ? { ...i, is_completed: newStatus } : i
+      )
     );
     try {
       const updated = await taskService.updateChecklistItem(
@@ -412,11 +558,15 @@ export function TaskDetailSheet({
         item.id,
         { is_completed: newStatus }
       );
-      setChecklists((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+      setChecklists((prev) =>
+        prev.map((i) => (i.id === item.id ? updated : i))
+      );
     } catch {
       // Rollback
       setChecklists((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, is_completed: item.is_completed } : i))
+        prev.map((i) =>
+          i.id === item.id ? { ...i, is_completed: item.is_completed } : i
+        )
       );
       toast.error("Failed to update checklist item");
     }
@@ -425,7 +575,12 @@ export function TaskDetailSheet({
   const handleDeleteChecklistItem = async (itemId: string) => {
     if (!activeTaskId) return;
     try {
-      await taskService.deleteChecklistItem(organizationId, projectId, activeTaskId, itemId);
+      await taskService.deleteChecklistItem(
+        organizationId,
+        projectId,
+        activeTaskId,
+        itemId
+      );
       setChecklists((prev) => prev.filter((i) => i.id !== itemId));
       toast.success("Checklist item deleted");
     } catch {
@@ -510,7 +665,9 @@ export function TaskDetailSheet({
         activeTaskId,
         attachmentToDelete.id
       );
-      setAttachments((prev) => prev.filter((a) => a.id !== attachmentToDelete.id));
+      setAttachments((prev) =>
+        prev.filter((a) => a.id !== attachmentToDelete.id)
+      );
       toast.success("Attachment deleted");
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
@@ -524,7 +681,9 @@ export function TaskDetailSheet({
   };
 
   // --- Mention Autocomplete Logic ---
-  const handleCommentChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleCommentChange = async (
+    e: React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
     const val = e.target.value;
     setNewCommentContent(val);
 
@@ -562,7 +721,8 @@ export function TaskDetailSheet({
 
     if (atIndex !== -1) {
       const mentionName = user.full_name || user.name;
-      const updatedBefore = textBeforeCursor.slice(0, atIndex) + `@${mentionName} `;
+      const updatedBefore =
+        textBeforeCursor.slice(0, atIndex) + `@${mentionName} `;
       setNewCommentContent(updatedBefore + textAfterCursor);
       setMentionedUserIds((prev) => Array.from(new Set([...prev, user.id])));
       setMentionQuery(null);
@@ -580,17 +740,22 @@ export function TaskDetailSheet({
     }
   };
 
-  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleCommentKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>
+  ) => {
     if (mentionSuggestions.length > 0 && mentionQuery !== null) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedMentionIndex((prev) => (prev + 1) % mentionSuggestions.length);
+        setSelectedMentionIndex(
+          (prev) => (prev + 1) % mentionSuggestions.length
+        );
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedMentionIndex(
-          (prev) => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length
+          (prev) =>
+            (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length
         );
         return;
       }
@@ -620,7 +785,8 @@ export function TaskDetailSheet({
         activeTaskId,
         {
           content: newCommentContent.trim(),
-          mentioned_user_ids: mentionedUserIds.length > 0 ? mentionedUserIds : undefined,
+          mentioned_user_ids:
+            mentionedUserIds.length > 0 ? mentionedUserIds : undefined,
         }
       );
       setComments((prev) => [created, ...prev]);
@@ -648,7 +814,9 @@ export function TaskDetailSheet({
         commentId,
         { content: editingCommentContent.trim() }
       );
-      setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? updated : c))
+      );
       setEditingCommentId(null);
       setEditingCommentContent("");
       toast.success("Comment updated");
@@ -702,14 +870,18 @@ export function TaskDetailSheet({
   };
 
   // Checklist counts & progress
-  const completedChecklistsCount = checklists.filter((i) => i.is_completed).length;
+  const completedChecklistsCount = checklists.filter(
+    (i) => i.is_completed
+  ).length;
   const checklistProgressPercent =
     checklists.length > 0
       ? Math.round((completedChecklistsCount / checklists.length) * 100)
       : 0;
 
   // Subtask counts & progress
-  const completedSubtasksCount = subtasks.filter((s) => s.status === "done").length;
+  const completedSubtasksCount = subtasks.filter(
+    (s) => s.status === "done"
+  ).length;
   const subtaskProgressPercent =
     subtasks.length > 0
       ? Math.round((completedSubtasksCount / subtasks.length) * 100)
@@ -737,7 +909,10 @@ export function TaskDetailSheet({
                 </Button>
               )}
 
-              <Badge variant="outline" className="font-mono text-xs font-semibold uppercase">
+              <Badge
+                variant="outline"
+                className="font-mono text-xs font-semibold uppercase"
+              >
                 {task?.issue_key || "TASK"}
               </Badge>
 
@@ -746,12 +921,20 @@ export function TaskDetailSheet({
               </Badge>
 
               {task?.parent_id && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <span>Subtask of</span>
-                  <span className="font-mono font-medium text-foreground">
-                    Parent #{task.parent_id.slice(0, 8)}
+                <button
+                  type="button"
+                  onClick={() =>
+                    parentTask && handleNavigateToSubtask(parentTask)
+                  }
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-primary"
+                  title="Navigate to predecessor"
+                >
+                  <Link2 className="h-3.5 w-3.5 text-primary" />
+                  <span>Predecessor:</span>
+                  <span className="font-mono font-semibold text-foreground hover:text-primary">
+                    {parentTask?.issue_key || `#${task.parent_id.slice(0, 8)}`}
                   </span>
-                </div>
+                </button>
               )}
             </div>
 
@@ -778,7 +961,8 @@ export function TaskDetailSheet({
             </div>
             {/* Accessible Screen-Reader Description */}
             <SheetDescription className="sr-only">
-              Comprehensive task details, checklists, subtasks, attachments, comments, and activity history.
+              Comprehensive task details, checklists, subtasks, attachments,
+              comments, and activity history.
             </SheetDescription>
           </SheetHeader>
 
@@ -802,7 +986,9 @@ export function TaskDetailSheet({
             <div className="flex flex-col items-center justify-center space-y-4 p-12 text-center">
               <AlertCircle className="h-12 w-12 text-destructive" />
               <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">Failed to load task</h3>
+                <h3 className="text-base font-semibold text-foreground">
+                  Failed to load task
+                </h3>
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
               <Button
@@ -855,7 +1041,7 @@ export function TaskDetailSheet({
                       title="Click to edit title"
                     >
                       <span>{task.title}</span>
-                      <Edit2 className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground" />
+                      <Edit2 className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                     </h2>
                   )}
                 </div>
@@ -917,10 +1103,18 @@ export function TaskDetailSheet({
 
                 {/* Tabs: Details / Work Items vs Discussions vs Timeline */}
                 <Tabs defaultValue="work_items" className="w-full">
-                  <TabsList className="mb-4 grid w-full grid-cols-3">
+                  <TabsList className="mb-4 grid w-full grid-cols-4">
                     <TabsTrigger value="work_items" className="gap-1.5 text-xs">
                       <CheckSquare className="h-3.5 w-3.5" />
-                      <span>Checklist & Subtasks</span>
+                      <span>Checklist</span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="dependencies"
+                      className="gap-1.5 text-xs"
+                      onClick={() => loadProjectTasks()}
+                    >
+                      <GitBranch className="h-3.5 w-3.5" />
+                      <span>Dependencies</span>
                     </TabsTrigger>
                     <TabsTrigger value="comments" className="gap-1.5 text-xs">
                       <MessageSquare className="h-3.5 w-3.5" />
@@ -929,7 +1123,9 @@ export function TaskDetailSheet({
                     <TabsTrigger
                       value="activity"
                       className="gap-1.5 text-xs"
-                      onClick={() => activeTaskId && loadActivities(activeTaskId)}
+                      onClick={() =>
+                        activeTaskId && loadActivities(activeTaskId)
+                      }
                     >
                       <History className="h-3.5 w-3.5" />
                       <span>Activity</span>
@@ -943,10 +1139,13 @@ export function TaskDetailSheet({
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <CheckSquare className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">Checklist</h3>
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Checklist
+                          </h3>
                           {checklists.length > 0 && (
                             <span className="text-xs text-muted-foreground">
-                              {completedChecklistsCount}/{checklists.length} ({checklistProgressPercent}%)
+                              {completedChecklistsCount}/{checklists.length} (
+                              {checklistProgressPercent}%)
                             </span>
                           )}
                         </div>
@@ -967,7 +1166,7 @@ export function TaskDetailSheet({
                         {checklists.map((item) => (
                           <div
                             key={item.id}
-                            className="group flex items-center justify-between rounded-md p-1.5 hover:bg-muted/40 transition-colors"
+                            className="group flex items-center justify-between rounded-md p-1.5 transition-colors hover:bg-muted/40"
                           >
                             <label className="flex flex-1 cursor-pointer items-center gap-2.5 text-sm">
                               <input
@@ -979,7 +1178,8 @@ export function TaskDetailSheet({
                               <span
                                 className={cn(
                                   "text-foreground",
-                                  item.is_completed && "line-through text-muted-foreground"
+                                  item.is_completed &&
+                                    "text-muted-foreground line-through"
                                 )}
                               >
                                 {item.title}
@@ -989,7 +1189,7 @@ export function TaskDetailSheet({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                              className="h-6 w-6 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                               onClick={() => handleDeleteChecklistItem(item.id)}
                               title="Delete checklist item"
                             >
@@ -1000,7 +1200,10 @@ export function TaskDetailSheet({
                       </div>
 
                       {/* Add checklist input */}
-                      <form onSubmit={handleAddChecklistItem} className="mt-3 flex items-center gap-2">
+                      <form
+                        onSubmit={handleAddChecklistItem}
+                        className="mt-3 flex items-center gap-2"
+                      >
                         <Input
                           value={newChecklistTitle}
                           onChange={(e) => setNewChecklistTitle(e.target.value)}
@@ -1012,7 +1215,9 @@ export function TaskDetailSheet({
                           type="submit"
                           size="sm"
                           className="h-8 gap-1 px-3 text-xs"
-                          disabled={!newChecklistTitle.trim() || isAddingChecklist}
+                          disabled={
+                            !newChecklistTitle.trim() || isAddingChecklist
+                          }
                         >
                           <Plus className="h-3.5 w-3.5" />
                           <span>Add</span>
@@ -1025,10 +1230,13 @@ export function TaskDetailSheet({
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <GitBranch className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">Subtasks</h3>
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Subtasks
+                          </h3>
                           {subtasks.length > 0 && (
                             <span className="text-xs text-muted-foreground">
-                              {completedSubtasksCount}/{subtasks.length} ({subtaskProgressPercent}%)
+                              {completedSubtasksCount}/{subtasks.length} (
+                              {subtaskProgressPercent}%)
                             </span>
                           )}
                         </div>
@@ -1050,10 +1258,13 @@ export function TaskDetailSheet({
                           <div
                             key={st.id}
                             onClick={() => handleNavigateToSubtask(st)}
-                            className="group flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-background/50 p-2 hover:border-primary/40 hover:bg-card-hover transition-colors"
+                            className="group flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-background/50 p-2 transition-colors hover:border-primary/40 hover:bg-card-hover"
                           >
                             <div className="flex items-center gap-2.5">
-                              <Badge variant="outline" className="font-mono text-[10px]">
+                              <Badge
+                                variant="outline"
+                                className="font-mono text-[10px]"
+                              >
                                 {st.issue_key}
                               </Badge>
                               <span className="text-xs font-medium text-foreground group-hover:text-primary">
@@ -1063,7 +1274,9 @@ export function TaskDetailSheet({
 
                             <div className="flex items-center gap-2">
                               <Badge
-                                variant={st.status === "done" ? "default" : "secondary"}
+                                variant={
+                                  st.status === "done" ? "default" : "secondary"
+                                }
                                 className="text-[10px] capitalize"
                               >
                                 {st.status}
@@ -1075,7 +1288,10 @@ export function TaskDetailSheet({
                       </div>
 
                       {/* Add subtask input */}
-                      <form onSubmit={handleAddSubtask} className="mt-3 flex items-center gap-2">
+                      <form
+                        onSubmit={handleAddSubtask}
+                        className="mt-3 flex items-center gap-2"
+                      >
                         <Input
                           value={newSubtaskTitle}
                           onChange={(e) => setNewSubtaskTitle(e.target.value)}
@@ -1100,7 +1316,9 @@ export function TaskDetailSheet({
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Paperclip className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">Attachments</h3>
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Attachments
+                          </h3>
                           <span className="text-xs text-muted-foreground">
                             ({attachments.length})
                           </span>
@@ -1124,7 +1342,11 @@ export function TaskDetailSheet({
                             onClick={() => fileInputRef.current?.click()}
                           >
                             <UploadCloud className="h-3.5 w-3.5" />
-                            <span>{isUploadingAttachment ? "Uploading..." : "Upload File"}</span>
+                            <span>
+                              {isUploadingAttachment
+                                ? "Uploading..."
+                                : "Upload File"}
+                            </span>
                           </Button>
                         </label>
                       </div>
@@ -1137,7 +1359,7 @@ export function TaskDetailSheet({
                           e.preventDefault();
                           handleFileUpload(e.dataTransfer.files);
                         }}
-                        className="mb-3 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border py-4 text-center hover:border-primary/50 hover:bg-muted/10 transition-colors"
+                        className="mb-3 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border py-4 text-center transition-colors hover:border-primary/50 hover:bg-muted/10"
                       >
                         <UploadCloud className="mb-1 h-5 w-5 text-muted-foreground" />
                         <p className="text-xs text-muted-foreground">
@@ -1153,13 +1375,15 @@ export function TaskDetailSheet({
                       ) : (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {attachments.map((att) => {
-                            const isImage = att.content_type.startsWith("image/");
-                            const downloadUrl = taskService.getAttachmentDownloadUrl(
-                              organizationId,
-                              projectId,
-                              activeTaskId!,
-                              att.id
-                            );
+                            const isImage =
+                              att.content_type.startsWith("image/");
+                            const downloadUrl =
+                              taskService.getAttachmentDownloadUrl(
+                                organizationId,
+                                projectId,
+                                activeTaskId!,
+                                att.id
+                              );
 
                             return (
                               <div
@@ -1177,7 +1401,8 @@ export function TaskDetailSheet({
                                       {att.file_name || att.filename}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground">
-                                      {formatBytes(att.file_size)} • {formatRelativeTime(att.created_at)}
+                                      {formatBytes(att.file_size)} •{" "}
+                                      {formatRelativeTime(att.created_at)}
                                     </p>
                                   </div>
                                 </div>
@@ -1211,10 +1436,232 @@ export function TaskDetailSheet({
                     </div>
                   </TabsContent>
 
+                  {/* TAB: Dependencies & Relationships */}
+                  <TabsContent value="dependencies" className="space-y-6">
+                    {/* Error Alert if Circular or Invalid */}
+                    {dependencyError && (
+                      <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-semibold">
+                            Dependency Validation Failed
+                          </p>
+                          <p className="mt-0.5 text-destructive/90">
+                            {dependencyError}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDependencyError(null)}
+                          className="h-5 w-5 text-destructive hover:bg-destructive/20"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Predecessors Section ("Blocked by") */}
+                    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Link2 className="h-4 w-4 text-primary" />
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Predecessor (Blocked By)
+                          </h3>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {parentTask ? "1 dependency" : "0 dependencies"}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        This task cannot start or complete until its predecessor
+                        work item is resolved.
+                      </p>
+
+                      {isLoadingParent ? (
+                        <Skeleton className="h-14 w-full rounded-lg" />
+                      ) : parentTask ? (
+                        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
+                          <div
+                            onClick={() => handleNavigateToSubtask(parentTask)}
+                            className="flex cursor-pointer items-center gap-3 transition-colors hover:text-primary"
+                          >
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs"
+                            >
+                              {parentTask.issue_key}
+                            </Badge>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">
+                                {parentTask.title}
+                              </p>
+                              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+                                <span className="capitalize">
+                                  {parentTask.status}
+                                </span>
+                                {parentTask.priority && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="capitalize">
+                                      {parentTask.priority}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isUpdatingDependency}
+                            onClick={handleRemovePredecessor}
+                            className="h-8 gap-1.5 text-xs text-destructive hover:bg-destructive/10"
+                            title="Remove predecessor dependency"
+                          >
+                            <Unlink className="h-3.5 w-3.5" />
+                            <span>Unlink</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+                            No predecessor linked. This task is currently
+                            unblocked.
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              aria-label="Select predecessor task"
+                              value={selectedPredecessorId}
+                              onChange={(e) =>
+                                setSelectedPredecessorId(e.target.value)
+                              }
+                              className="h-8 flex-1 rounded-md border border-border bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                              disabled={
+                                isUpdatingDependency || isLoadingProjectTasks
+                              }
+                            >
+                              <option value="">
+                                Select a predecessor task...
+                              </option>
+                              {projectTasksList.map((pt) => (
+                                <option key={pt.id} value={pt.id}>
+                                  [{pt.issue_key}] {pt.title} ({pt.status})
+                                </option>
+                              ))}
+                            </select>
+
+                            <Button
+                              size="sm"
+                              disabled={
+                                !selectedPredecessorId ||
+                                isUpdatingDependency ||
+                                isLoadingProjectTasks
+                              }
+                              onClick={() =>
+                                handleSetPredecessor(selectedPredecessorId)
+                              }
+                              className="h-8 gap-1 bg-primary px-3 text-xs text-primary-foreground"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                              <span>Link</span>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Successors Section ("Blocks") */}
+                    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Network className="h-4 w-4 text-primary" />
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Successors (Blocks)
+                          </h3>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {subtasks.length}{" "}
+                          {subtasks.length === 1 ? "task" : "tasks"}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Work items that depend on this task before they can
+                        finish.
+                      </p>
+
+                      <div className="space-y-1.5">
+                        {subtasks.length === 0 ? (
+                          <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+                            No successor tasks. This task does not block other
+                            work items.
+                          </div>
+                        ) : (
+                          subtasks.map((st) => (
+                            <div
+                              key={st.id}
+                              onClick={() => handleNavigateToSubtask(st)}
+                              className="group flex cursor-pointer items-center justify-between rounded-lg border border-border/60 bg-background/60 p-2.5 transition-colors hover:border-primary/50 hover:bg-card-hover"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <Badge
+                                  variant="outline"
+                                  className="font-mono text-xs"
+                                >
+                                  {st.issue_key}
+                                </Badge>
+                                <div>
+                                  <span className="text-xs font-medium text-foreground group-hover:text-primary">
+                                    {st.title}
+                                  </span>
+                                  <div className="text-[10px] capitalize text-muted-foreground">
+                                    {st.status} • {st.priority || "Normal"}
+                                  </div>
+                                </div>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Add Successor / Subtask input */}
+                      <form
+                        onSubmit={handleAddSubtask}
+                        className="mt-3 flex items-center gap-2"
+                      >
+                        <Input
+                          value={newSubtaskTitle}
+                          onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                          placeholder="Add child successor task..."
+                          className="h-8 text-xs"
+                          disabled={isAddingSubtask}
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          className="h-8 gap-1 px-3 text-xs"
+                          disabled={!newSubtaskTitle.trim() || isAddingSubtask}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Add</span>
+                        </Button>
+                      </form>
+                    </div>
+                  </TabsContent>
+
                   {/* TAB 2: Comments & @Mentions */}
                   <TabsContent value="comments" className="space-y-4">
                     {/* New Comment Box */}
-                    <form onSubmit={handleCreateComment} className="relative rounded-lg border border-border bg-card p-3">
+                    <form
+                      onSubmit={handleCreateComment}
+                      className="relative rounded-lg border border-border bg-card p-3"
+                    >
                       <div className="relative">
                         <textarea
                           ref={textareaRef}
@@ -1227,36 +1674,44 @@ export function TaskDetailSheet({
                         />
 
                         {/* Mention Suggestions Autocomplete Menu */}
-                        {mentionSuggestions.length > 0 && mentionQuery !== null && (
-                          <div className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-md border border-border bg-popover p-1 shadow-lg">
-                            <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                              Mention member
+                        {mentionSuggestions.length > 0 &&
+                          mentionQuery !== null && (
+                            <div className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-md border border-border bg-popover p-1 shadow-lg">
+                              <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                Mention member
+                              </div>
+                              <div className="max-h-40 overflow-y-auto">
+                                {mentionSuggestions.map((user, idx) => (
+                                  <button
+                                    key={user.id}
+                                    type="button"
+                                    onClick={() => handleSelectMention(user)}
+                                    className={cn(
+                                      "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+                                      idx === selectedMentionIndex &&
+                                        "bg-accent text-accent-foreground"
+                                    )}
+                                  >
+                                    <Avatar className="h-5 w-5">
+                                      <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
+                                        {(user.full_name ||
+                                          user.name ||
+                                          "U")[0]?.toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="truncate">
+                                      <p className="font-medium">
+                                        {user.full_name || user.name}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {user.email}
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
-                            <div className="max-h-40 overflow-y-auto">
-                              {mentionSuggestions.map((user, idx) => (
-                                <button
-                                  key={user.id}
-                                  type="button"
-                                  onClick={() => handleSelectMention(user)}
-                                  className={cn(
-                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                                    idx === selectedMentionIndex && "bg-accent text-accent-foreground"
-                                  )}
-                                >
-                                  <Avatar className="h-5 w-5">
-                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                      {(user.full_name || user.name || "U")[0]?.toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="truncate">
-                                    <p className="font-medium">{user.full_name || user.name}</p>
-                                    <p className="text-[10px] text-muted-foreground">{user.email}</p>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                          )}
                       </div>
 
                       <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">
@@ -1269,10 +1724,14 @@ export function TaskDetailSheet({
                           type="submit"
                           size="sm"
                           className="h-8 gap-1.5 px-3 text-xs"
-                          disabled={!newCommentContent.trim() || isSubmittingComment}
+                          disabled={
+                            !newCommentContent.trim() || isSubmittingComment
+                          }
                         >
                           <Send className="h-3 w-3" />
-                          <span>{isSubmittingComment ? "Posting..." : "Comment"}</span>
+                          <span>
+                            {isSubmittingComment ? "Posting..." : "Comment"}
+                          </span>
                         </Button>
                       </div>
                     </form>
@@ -1303,11 +1762,15 @@ export function TaskDetailSheet({
                                 <div className="flex items-center gap-2">
                                   <Avatar className="h-6 w-6">
                                     <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary">
-                                      {(comment.author?.full_name || comment.author?.name || "U")[0]?.toUpperCase()}
+                                      {(comment.author?.full_name ||
+                                        comment.author?.name ||
+                                        "U")[0]?.toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
                                   <span className="font-semibold text-foreground">
-                                    {comment.author?.full_name || comment.author?.name || "Unknown User"}
+                                    {comment.author?.full_name ||
+                                      comment.author?.name ||
+                                      "Unknown User"}
                                   </span>
                                   <span className="text-[10px] text-muted-foreground">
                                     {formatRelativeTime(comment.created_at)}
@@ -1327,7 +1790,9 @@ export function TaskDetailSheet({
                                       className="h-6 w-6 text-muted-foreground hover:text-foreground"
                                       onClick={() => {
                                         setEditingCommentId(comment.id);
-                                        setEditingCommentContent(comment.content);
+                                        setEditingCommentContent(
+                                          comment.content
+                                        );
                                       }}
                                       title="Edit comment"
                                     >
@@ -1337,7 +1802,9 @@ export function TaskDetailSheet({
                                       variant="ghost"
                                       size="icon"
                                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                      onClick={() => setCommentToDelete(comment.id)}
+                                      onClick={() =>
+                                        setCommentToDelete(comment.id)
+                                      }
                                       title="Delete comment"
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -1350,7 +1817,9 @@ export function TaskDetailSheet({
                                 <div className="mt-2 space-y-2">
                                   <textarea
                                     value={editingCommentContent}
-                                    onChange={(e) => setEditingCommentContent(e.target.value)}
+                                    onChange={(e) =>
+                                      setEditingCommentContent(e.target.value)
+                                    }
                                     rows={2}
                                     className="w-full rounded border border-input bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
@@ -1369,7 +1838,9 @@ export function TaskDetailSheet({
                                     <Button
                                       size="sm"
                                       className="h-7 text-xs"
-                                      onClick={() => handleUpdateComment(comment.id)}
+                                      onClick={() =>
+                                        handleUpdateComment(comment.id)
+                                      }
                                     >
                                       Save
                                     </Button>
@@ -1409,16 +1880,33 @@ export function TaskDetailSheet({
                             <div className="flex-1 space-y-0.5">
                               <p className="text-foreground">
                                 <span className="font-semibold text-primary">
-                                  {act.user?.full_name || act.user?.name || "System"}
+                                  {act.user?.full_name ||
+                                    act.user?.name ||
+                                    "System"}
                                 </span>{" "}
-                                {(act.activity_type || act.field || "Updated").replace(/_/g, " ")}:{" "}
-                                <span className="font-medium">{act.field_name || act.field}</span>
+                                {(
+                                  act.activity_type ||
+                                  act.field ||
+                                  "Updated"
+                                ).replace(/_/g, " ")}
+                                :{" "}
+                                <span className="font-medium">
+                                  {act.field_name || act.field}
+                                </span>
                               </p>
                               {(act.old_value || act.new_value) && (
                                 <p className="text-[11px] text-muted-foreground">
-                                  {act.old_value && <span className="line-through">{act.old_value}</span>}
+                                  {act.old_value && (
+                                    <span className="line-through">
+                                      {act.old_value}
+                                    </span>
+                                  )}
                                   {act.old_value && act.new_value && " → "}
-                                  {act.new_value && <span className="font-medium text-foreground">{act.new_value}</span>}
+                                  {act.new_value && (
+                                    <span className="font-medium text-foreground">
+                                      {act.new_value}
+                                    </span>
+                                  )}
                                 </p>
                               )}
                               <p className="text-[10px] text-muted-foreground">
@@ -1434,10 +1922,15 @@ export function TaskDetailSheet({
               </div>
 
               {/* Right Column: Metadata Sidebar */}
-              <div className="w-72 border-l border-border bg-card/40 p-4 space-y-5 overflow-y-auto hidden md:block">
+              <div className="hidden w-72 space-y-5 overflow-y-auto border-l border-border bg-card/40 p-4 md:block">
                 {/* Status */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-status-select" className="text-xs text-muted-foreground">Status</Label>
+                  <Label
+                    htmlFor="task-status-select"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Status
+                  </Label>
                   <select
                     id="task-status-select"
                     value={task.status}
@@ -1455,13 +1948,19 @@ export function TaskDetailSheet({
 
                 {/* Priority */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-priority-select" className="text-xs text-muted-foreground">Priority</Label>
+                  <Label
+                    htmlFor="task-priority-select"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Priority
+                  </Label>
                   <select
                     id="task-priority-select"
                     value={task.priority}
                     onChange={(e) =>
                       handleUpdateTaskField({
-                        priority: e.target.value as "lowest" | "low" | "medium" | "high" | "urgent",
+                        priority: e.target.value as
+                          "lowest" | "low" | "medium" | "high" | "urgent",
                       })
                     }
                     disabled={isSavingMetadata}
@@ -1477,13 +1976,19 @@ export function TaskDetailSheet({
 
                 {/* Assignee */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-assignee-select" className="text-xs text-muted-foreground">Assignee</Label>
+                  <Label
+                    htmlFor="task-assignee-select"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Assignee
+                  </Label>
                   <select
                     id="task-assignee-select"
                     value={task.assignee_id || ""}
                     onChange={(e) =>
                       handleUpdateTaskField({
-                        assignee_id: e.target.value === "" ? null : e.target.value,
+                        assignee_id:
+                          e.target.value === "" ? null : e.target.value,
                       })
                     }
                     disabled={isSavingMetadata}
@@ -1500,29 +2005,42 @@ export function TaskDetailSheet({
 
                 {/* Reporter */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Reporter</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Reporter
+                  </Label>
                   <div className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5 text-xs">
                     <Avatar className="h-5 w-5">
-                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                        {(task.reporter?.full_name || task.reporter?.name || "R")[0]?.toUpperCase()}
+                      <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
+                        {(task.reporter?.full_name ||
+                          task.reporter?.name ||
+                          "R")[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate text-foreground">
-                      {task.reporter?.full_name || task.reporter?.name || "System"}
+                      {task.reporter?.full_name ||
+                        task.reporter?.name ||
+                        "System"}
                     </span>
                   </div>
                 </div>
 
                 {/* Due Date */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-due-date-input" className="text-xs text-muted-foreground">Due Date</Label>
+                  <Label
+                    htmlFor="task-due-date-input"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Due Date
+                  </Label>
                   <input
                     id="task-due-date-input"
                     type="date"
                     value={task.due_date ? task.due_date.slice(0, 10) : ""}
                     onChange={(e) =>
                       handleUpdateTaskField({
-                        due_date: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        due_date: e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null,
                       })
                     }
                     disabled={isSavingMetadata}
@@ -1532,15 +2050,24 @@ export function TaskDetailSheet({
 
                 {/* Story Points */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-points-input" className="text-xs text-muted-foreground">Story Points</Label>
+                  <Label
+                    htmlFor="task-points-input"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Story Points
+                  </Label>
                   <input
                     id="task-points-input"
                     type="number"
                     min={0}
-                    value={task.estimated_points != null ? task.estimated_points : ""}
+                    value={
+                      task.estimated_points != null ? task.estimated_points : ""
+                    }
                     onChange={(e) =>
                       handleUpdateTaskField({
-                        estimated_points: e.target.value ? Number(e.target.value) : null,
+                        estimated_points: e.target.value
+                          ? Number(e.target.value)
+                          : null,
                       })
                     }
                     placeholder="e.g. 5"

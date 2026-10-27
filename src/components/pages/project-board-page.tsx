@@ -3,12 +3,26 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, RefreshCw, AlertCircle, Kanban, LayoutList, Layers } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  RefreshCw,
+  AlertCircle,
+  Kanban,
+  LayoutList,
+  Layers,
+  Calendar as CalendarNavIcon,
+  GitBranch,
+  Flag,
+} from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { KanbanBoard } from "@/components/shared/kanban-board";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { AdvancedTaskFilters } from "@/components/shared/advanced-task-filters";
 import { TaskListView } from "@/components/shared/task-list-view";
+import { CalendarView } from "@/components/shared/calendar-view";
+import { TimelineView } from "@/components/shared/timeline-view";
+import { MilestoneModal } from "@/components/shared/milestone-modal";
 import { TaskModal } from "@/components/shared/task-modal";
 import { TaskHistoryDrawer } from "@/components/shared/task-history-drawer";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
@@ -29,22 +43,26 @@ import type {
   ProjectMembershipResponse,
 } from "@/services/generated/api-types";
 
+export type ProjectViewMode = "board" | "list" | "calendar" | "timeline";
+
 export interface ProjectBoardPageProps {
   organizationId: string;
   projectId: string;
+  initialViewMode?: ProjectViewMode;
 }
 
 export function ProjectBoardPage({
   organizationId,
   projectId,
+  initialViewMode,
 }: ProjectBoardPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const currentLocale = pathname?.split("/")[1] || "en";
 
   const searchParams = useSearchParams();
-  const [viewMode, setViewMode] = useState<"board" | "list">(
-    (searchParams.get("view") as "board" | "list") || "board"
+  const [viewMode, setViewMode] = useState<ProjectViewMode>(
+    (searchParams.get("view") as ProjectViewMode) || initialViewMode || "board"
   );
 
   const [board, setBoard] = useState<KanbanBoardResponse | null>(null);
@@ -52,6 +70,12 @@ export function ProjectBoardPage({
   const [members, setMembers] = useState<ProjectMembershipResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Milestone Modal state
+  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+  const [selectedMilestoneDate, setSelectedMilestoneDate] = useState<
+    Date | undefined
+  >(undefined);
 
   // Filters (Kanban view)
   const [search, setSearch] = useState("");
@@ -63,7 +87,8 @@ export function ProjectBoardPage({
     status: searchParams.get("status") || "all",
     priority: searchParams.get("priority") || "all",
     assignee_id: searchParams.get("assignee") || "all",
-    due_preset: (searchParams.get("due") as TaskFilterCriteria["due_preset"]) || "all",
+    due_preset:
+      (searchParams.get("due") as TaskFilterCriteria["due_preset"]) || "all",
     sort_by: searchParams.get("sort_by") || "issue_key",
     sort_dir: (searchParams.get("sort_dir") as "asc" | "desc") || "asc",
   });
@@ -416,11 +441,30 @@ export function ProjectBoardPage({
     listPage * listPageSize
   );
 
-  const handleViewModeChange = (mode: "board" | "list") => {
+  const handleViewModeChange = (mode: ProjectViewMode) => {
     setViewMode(mode);
     const params = new URLSearchParams(searchParams?.toString() || "");
     params.set("view", mode);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleCreateMilestone = async (data: {
+    title: string;
+    due_date: string;
+    description?: string;
+  }) => {
+    try {
+      await taskService.createMilestone(organizationId, projectId, data);
+      toast.success(`Milestone "${data.title}" created`);
+      loadData();
+    } catch (err: unknown) {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error("Failed to create milestone");
+      }
+      throw err;
+    }
   };
 
   if (isLoading) {
@@ -493,7 +537,7 @@ export function ProjectBoardPage({
                 variant={viewMode === "board" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => handleViewModeChange("board")}
-                className="h-7 px-2.5 text-xs gap-1.5"
+                className="h-7 gap-1.5 px-2.5 text-xs"
                 title="Board View"
               >
                 <Kanban className="h-3.5 w-3.5" />
@@ -503,13 +547,47 @@ export function ProjectBoardPage({
                 variant={viewMode === "list" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => handleViewModeChange("list")}
-                className="h-7 px-2.5 text-xs gap-1.5"
+                className="h-7 gap-1.5 px-2.5 text-xs"
                 title="List View"
               >
                 <LayoutList className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">List</span>
               </Button>
+              <Button
+                variant={viewMode === "calendar" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handleViewModeChange("calendar")}
+                className="h-7 gap-1.5 px-2.5 text-xs"
+                title="Calendar View"
+              >
+                <CalendarNavIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Calendar</span>
+              </Button>
+              <Button
+                variant={viewMode === "timeline" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handleViewModeChange("timeline")}
+                className="h-7 gap-1.5 px-2.5 text-xs"
+                title="Timeline & Gantt View"
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Timeline</span>
+              </Button>
             </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedMilestoneDate(new Date());
+                setIsMilestoneModalOpen(true);
+              }}
+              className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+              title="Add Project Milestone"
+            >
+              <Flag className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">Milestone</span>
+            </Button>
 
             <Button
               variant="outline"
@@ -550,7 +628,7 @@ export function ProjectBoardPage({
         }
       />
 
-      {viewMode === "board" ? (
+      {viewMode === "board" && (
         <>
           <FilterBar
             searchValue={search}
@@ -581,7 +659,9 @@ export function ProjectBoardPage({
             />
           </div>
         </>
-      ) : (
+      )}
+
+      {viewMode === "list" && (
         <div className="space-y-4">
           <AdvancedTaskFilters
             filters={listFilters}
@@ -631,6 +711,46 @@ export function ProjectBoardPage({
         </div>
       )}
 
+      {viewMode === "calendar" && (
+        <CalendarView
+          tasks={allBoardTasks}
+          assigneeMap={assigneeMap}
+          availableStatuses={availableStatuses}
+          members={memberOptions}
+          onTaskClick={(taskId) => {
+            setDetailTaskId(taskId);
+            setIsDetailSheetOpen(true);
+          }}
+          onCreateTask={(date) => {
+            setSelectedTask(null);
+            setModalDefaultStatus(board.columns[0]?.status.id || "todo");
+            setIsTaskModalOpen(true);
+          }}
+        />
+      )}
+
+      {viewMode === "timeline" && (
+        <TimelineView
+          tasks={allBoardTasks}
+          assigneeMap={assigneeMap}
+          availableStatuses={availableStatuses}
+          members={memberOptions}
+          onTaskClick={(taskId) => {
+            setDetailTaskId(taskId);
+            setIsDetailSheetOpen(true);
+          }}
+          onCreateTask={() => {
+            setSelectedTask(null);
+            setModalDefaultStatus(board.columns[0]?.status.id || "todo");
+            setIsTaskModalOpen(true);
+          }}
+          onCreateMilestone={() => {
+            setSelectedMilestoneDate(new Date());
+            setIsMilestoneModalOpen(true);
+          }}
+        />
+      )}
+
       {/* Task Create / Edit Dialog */}
       <TaskModal
         isOpen={isTaskModalOpen}
@@ -646,6 +766,14 @@ export function ProjectBoardPage({
         onSubmitUpdate={handleUpdateTask}
         onDeleteTask={handleDeleteTask}
         isSubmitting={isSubmittingTask}
+      />
+
+      {/* Project Milestone Create / Edit Dialog */}
+      <MilestoneModal
+        isOpen={isMilestoneModalOpen}
+        onClose={() => setIsMilestoneModalOpen(false)}
+        onSubmit={handleCreateMilestone}
+        defaultDate={selectedMilestoneDate}
       />
 
       {/* Task Details & Collaboration Sheet (Phase 4) */}
