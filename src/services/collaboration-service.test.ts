@@ -157,5 +157,20 @@ describe("collaborationService", () => {
       { method: "GET" }
     );
     expect(result).toEqual(mockMembers);
+
+    // Also test project-scoped call without taskId
+    vi.mocked(apiClient).mockResolvedValueOnce(mockMembers);
+    const projResult = await collaborationService.getMentionableMembers(
+      orgId,
+      projectId,
+      undefined,
+      "alice"
+    );
+    expect(apiClient).toHaveBeenCalledWith(
+      COLLABORATION_ENDPOINTS.mentionableMembers(orgId, projectId) +
+        "?search=alice",
+      { method: "GET" }
+    );
+    expect(projResult).toEqual(mockMembers);
   });
 });
