@@ -785,3 +785,87 @@ export interface SprintRetrospectiveResponse {
   created_at: string;
   updated_at: string;
 }
+
+export interface BulkTaskOperationRequest {
+  task_ids: string[];
+  operation: "update_status" | "assign_user" | "update_priority" | "add_label" | "delete";
+  payload?: Record<string, unknown>;
+}
+
+export interface BulkTaskOperationResponse {
+  total_requested: number;
+  successful_count: number;
+  failed_count: number;
+  errors: Record<string, string>;
+  affected_task_ids: string[];
+}
+
+export interface TaskTemplateResponse {
+  id: string;
+  project_id: string;
+  organization_id: string;
+  name: string;
+  description?: string | null;
+  task_title: string;
+  task_description?: string | null;
+  task_type: string;
+  priority: string;
+  estimated_points?: number | null;
+  checklist_definitions?: Array<{ title: string; position: number }> | null;
+  default_assignee_id?: string | null;
+  created_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskTemplateCreateRequest {
+  name: string;
+  description?: string | null;
+  task_title: string;
+  task_description?: string | null;
+  task_type?: string;
+  priority?: string;
+  estimated_points?: number | null;
+  checklist_definitions?: Array<{ title: string; position: number }> | null;
+  default_assignee_id?: string | null;
+}
+
+export interface RecurringTaskRuleResponse {
+  id: string;
+  project_id: string;
+  organization_id: string;
+  title: string;
+  description?: string | null;
+  type: string;
+  priority: string;
+  estimated_points?: number | null;
+  assignee_id?: string | null;
+  recurrence_pattern: string;
+  interval_value: number;
+  timezone: string;
+  next_run_at: string;
+  last_run_at?: string | null;
+  is_active: boolean;
+  created_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationRuleResponse {
+  id: string;
+  project_id: string;
+  organization_id: string;
+  name: string;
+  description?: string | null;
+  trigger_event: string;
+  trigger_conditions?: Record<string, unknown> | null;
+  action_type: string;
+  action_payload?: Record<string, unknown> | null;
+  is_active: boolean;
+  execution_count: number;
+  last_executed_at?: string | null;
+  created_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+

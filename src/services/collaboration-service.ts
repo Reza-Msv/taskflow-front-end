@@ -22,8 +22,10 @@ export const COLLABORATION_ENDPOINTS = {
     commentId: string
   ) =>
     `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/comments/${encodeURIComponent(commentId)}`,
-  mentionableMembers: (orgId: string, projectId: string, taskId: string) =>
-    `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/mentionable-members`,
+  mentionableMembers: (orgId: string, projectId: string, taskId?: string) =>
+    taskId
+      ? `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/mentionable-members`
+      : `/api/v1/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/mentionable-members`,
 } as const;
 
 export const collaborationService = {
@@ -114,7 +116,7 @@ export const collaborationService = {
   async getMentionableMembers(
     orgId: string,
     projectId: string,
-    taskId: string,
+    taskId?: string,
     search?: string
   ): Promise<MentionableUserResponse[]> {
     const searchParams = new URLSearchParams();
@@ -123,9 +125,12 @@ export const collaborationService = {
     }
 
     const query = searchParams.toString();
-    const url = query
-      ? `${COLLABORATION_ENDPOINTS.mentionableMembers(orgId, projectId, taskId)}?${query}`
-      : COLLABORATION_ENDPOINTS.mentionableMembers(orgId, projectId, taskId);
+    const endpoint = COLLABORATION_ENDPOINTS.mentionableMembers(
+      orgId,
+      projectId,
+      taskId
+    );
+    const url = query ? `${endpoint}?${query}` : endpoint;
 
     return apiClient<MentionableUserResponse[]>(url, {
       method: "GET",
