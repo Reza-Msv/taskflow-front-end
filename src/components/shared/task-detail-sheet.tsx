@@ -51,6 +51,7 @@ import {
   Unlink,
   Network,
   Flag,
+  AlertTriangle,
 } from "lucide-react";
 import type {
   WorkItemDetailResponse,
@@ -214,6 +215,16 @@ export function TaskDetailSheet({
     useState<string>("");
   const [isUpdatingDependency, setIsUpdatingDependency] = useState(false);
   const [dependencyError, setDependencyError] = useState<string | null>(null);
+
+  // Blocked predecessor validation state
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [isBlockedTransitionConfirmOpen, setIsBlockedTransitionConfirmOpen] =
+    useState(false);
+
+  const isPredecessorBlocked = Boolean(
+    parentTask &&
+      !["done", "completed"].includes(parentTask.status?.toLowerCase() || "")
+  );
 
   // Synchronize activeTaskId when prop taskId changes
   useEffect(() => {
@@ -454,8 +465,19 @@ export function TaskDetailSheet({
     }
   };
 
-  const handleUpdateStatus = async (newStatus: string) => {
+  const handleUpdateStatus = async (newStatus: string, force = false) => {
     if (!task || !activeTaskId) return;
+
+    if (
+      !force &&
+      ["done", "completed"].includes(newStatus.toLowerCase()) &&
+      isPredecessorBlocked
+    ) {
+      setPendingStatus(newStatus);
+      setIsBlockedTransitionConfirmOpen(true);
+      return;
+    }
+
     setIsSavingMetadata(true);
     try {
       const updated = await taskService.moveTask(
@@ -477,6 +499,7 @@ export function TaskDetailSheet({
       }
     } finally {
       setIsSavingMetadata(false);
+      setPendingStatus(null);
     }
   };
 
@@ -1003,6 +1026,32 @@ export function TaskDetailSheet({
             <div className="flex flex-1 overflow-hidden">
               {/* Left / Main Column: Details, Checklists, Subtasks, Attachments, Comments */}
               <div className="flex-1 overflow-y-auto px-6 py-5">
+                {/* Blocked Predecessor Banner */}
+                {isPredecessorBlocked && (
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                      <div>
+                        <span className="font-semibold">Blocked by Predecessor: </span>
+                        <span>
+                          [{parentTask?.issue_key}] {parentTask?.title} is still {parentTask?.status}.
+                        </span>
+                      </div>
+                    </div>
+                    {parentTask && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleNavigateToSubtask(parentTask)}
+                        className="h-7 border-amber-500/30 text-xs text-amber-500 hover:bg-amber-500/20"
+                      >
+                        View
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 {/* Title */}
                 <div className="mb-4">
                   {isEditingTitle ? (
@@ -2124,6 +2173,20 @@ export function TaskDetailSheet({
         confirmLabel="Delete"
         onConfirm={handleDeleteComment}
         isDestructive
+      />
+
+      {/* Confirm Blocked Status Transition */}
+      <ConfirmDialog
+        open={isBlockedTransitionConfirmOpen}
+        onOpenChange={setIsBlockedTransitionConfirmOpen}
+        title="Resolve Blocked Task?"
+        description={`Predecessor task [${parentTask?.issue_key}] is still ${parentTask?.status}. Resolving this task before its predecessor is completed may violate workflow sequencing. Do you wish to proceed?`}
+        confirmLabel="Mark Completed"
+        onConfirm={() => {
+          if (pendingStatus) {
+            handleUpdateStatus(pendingStatus, true);
+          }
+        }}
       />
     </>
   );

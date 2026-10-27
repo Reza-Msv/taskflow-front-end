@@ -41,6 +41,10 @@ export interface TaskListViewProps {
   assigneeMap?: Record<string, string>;
   projectMap?: Record<string, { name: string; key: string }>;
   showProjectColumn?: boolean;
+  // Multi-Selection for Bulk Actions
+  selectable?: boolean;
+  selectedTaskIds?: Set<string>;
+  onSelectionChange?: (selectedIds: Set<string>) => void;
   // Sorting
   sortField?: string;
   sortDirection?: "asc" | "desc";
@@ -63,6 +67,9 @@ export function TaskListView({
   assigneeMap = {},
   projectMap = {},
   showProjectColumn = false,
+  selectable = false,
+  selectedTaskIds = new Set(),
+  onSelectionChange,
   sortField,
   sortDirection = "asc",
   onSortChange,
@@ -226,12 +233,51 @@ export function TaskListView({
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(startItem + tasks.length - 1, totalItems || tasks.length);
 
+  const toggleSelectAll = () => {
+    if (!onSelectionChange) return;
+    const allSelected =
+      tasks.length > 0 && tasks.every((t) => selectedTaskIds.has(t.id));
+    if (allSelected) {
+      onSelectionChange(new Set());
+    } else {
+      const next = new Set(selectedTaskIds);
+      tasks.forEach((t) => next.add(t.id));
+      onSelectionChange(next);
+    }
+  };
+
+  const toggleTaskSelection = (id: string) => {
+    if (!onSelectionChange) return;
+    const next = new Set(selectedTaskIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    onSelectionChange(next);
+  };
+
+  const isAllSelected =
+    tasks.length > 0 && tasks.every((t) => selectedTaskIds.has(t.id));
+
   return (
     <div className={cn("space-y-3", className)}>
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              {selectable && (
+                <TableHead className="w-[44px] px-3 select-none">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all tasks"
+                    checked={isAllSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                  />
+                </TableHead>
+              )}
+
               <TableHead
                 className="w-[120px] cursor-pointer select-none"
                 onClick={() => onSortChange && onSortChange("issue_key")}
@@ -289,6 +335,7 @@ export function TaskListView({
               const overdue = isTaskOverdue(task);
               const assigneeName = getAssigneeName(task);
               const isUnassigned = assigneeName === "Unassigned";
+              const isRowSelected = selectedTaskIds.has(task.id);
 
               return (
                 <TableRow
@@ -301,8 +348,26 @@ export function TaskListView({
                       onTaskClick(task.id);
                     }
                   }}
-                  className="cursor-pointer focus:bg-accent/40 focus:outline-none transition-colors"
+                  className={cn(
+                    "cursor-pointer focus:bg-accent/40 focus:outline-none transition-colors",
+                    isRowSelected && "bg-primary/5 hover:bg-primary/10"
+                  )}
                 >
+                  {selectable && (
+                    <TableCell
+                      className="w-[44px] px-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${task.issue_key}`}
+                        checked={isRowSelected}
+                        onChange={() => toggleTaskSelection(task.id)}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                      />
+                    </TableCell>
+                  )}
+
                   {/* Issue Key */}
                   <TableCell className="font-mono text-xs font-semibold text-primary">
                     {task.issue_key}

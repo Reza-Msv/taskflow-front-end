@@ -169,4 +169,33 @@ describe("TaskListView", () => {
 
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
   });
+
+  it("renders checkboxes and supports row and header selection in selectable mode", () => {
+    const onSelectionChange = vi.fn();
+    render(
+      <TaskListView
+        tasks={mockTasks}
+        onTaskClick={onTaskClick}
+        selectable={true}
+        selectedTaskIds={new Set(["task-1"])}
+        onSelectionChange={onSelectionChange}
+      />
+    );
+
+    const selectAllCheckbox = screen.getByLabelText("Select all tasks") as HTMLInputElement;
+    expect(selectAllCheckbox).toBeInTheDocument();
+    expect(selectAllCheckbox.checked).toBe(false);
+
+    const task1Checkbox = screen.getByLabelText("Select PROJ-1") as HTMLInputElement;
+    expect(task1Checkbox.checked).toBe(true);
+
+    const task2Checkbox = screen.getByLabelText("Select PROJ-2") as HTMLInputElement;
+    expect(task2Checkbox.checked).toBe(false);
+
+    fireEvent.click(task2Checkbox);
+    expect(onSelectionChange).toHaveBeenCalled();
+
+    fireEvent.click(selectAllCheckbox);
+    expect(onSelectionChange).toHaveBeenCalled();
+  });
 });

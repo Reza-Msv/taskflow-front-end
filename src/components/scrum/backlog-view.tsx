@@ -17,6 +17,10 @@ import {
   Filter,
   RefreshCw,
   FolderPlus,
+  ArrowRightCircle,
+  Flag,
+  UserCheck,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +35,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { taskService } from "@/services/task-service";
 import { scrumService, type BacklogQueryParams } from "@/services/scrum-service";
 import { TaskEstimateDialog } from "@/components/scrum/task-estimate-dialog";
 import { ApiClientError } from "@/services/api-client";
@@ -85,6 +91,8 @@ export function BacklogView({
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [isAssigning, setIsAssigning] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
+  const [isProcessingBulk, setIsProcessingBulk] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // Task estimate dialog state
   const [taskToEstimate, setTaskToEstimate] = useState<WorkItemResponse | null>(null);
@@ -156,6 +164,116 @@ export function BacklogView({
     } else {
       setSelectedTaskIds(new Set(tasks.map((t) => t.id)));
     }
+  };
+
+  // Bulk Handlers
+  const handleBulkStatusChange = async (newStatus: string) => {
+    const selectedList = tasks.filter((t) => selectedTaskIds.has(t.id));
+    if (!selectedList.length) return;
+    setIsProcessingBulk(true);
+    let successCount = 0;
+    const errors: string[] = [];
+
+    for (const task of selectedList) {
+      try {
+        await taskService.moveTask(organizationId, projectId, task.id, {
+          status: newStatus,
+          version: task.version,
+        });
+        successCount++;
+      } catch (err: unknown) {
+        if (err instanceof ApiClientError) {
+          errors.push(`${task.issue_key}: ${err.message}`);
+        } else {
+          errors.push(`${task.issue_key}: Failed`);
+        }
+      }
+    }
+
+    setIsProcessingBulk(false);
+    if (successCount === selectedList.length) {
+      toast.success(`Moved ${successCount} task(s) to ${newStatus}`);
+    } else {
+      toast.warning(`Moved ${successCount}/${selectedList.length} tasks.`, {
+        description: errors[0],
+      });
+    }
+    setSelectedTaskIds(new Set());
+    loadBacklog();
+  };
+
+  const handleBulkPriorityChange = async (
+    priority: "lowest" | "low" | "medium" | "high" | "urgent"
+  ) => {
+    const selectedList = tasks.filter((t) => selectedTaskIds.has(t.id));
+    if (!selectedList.length) return;
+    setIsProcessingBulk(true);
+    let successCount = 0;
+
+    for (const task of selectedList) {
+      try {
+        await taskService.updateTask(organizationId, projectId, task.id, {
+          priority,
+          version: task.version,
+        });
+        successCount++;
+      } catch {
+        // Continue
+      }
+    }
+
+    setIsProcessingBulk(false);
+    toast.success(`Updated priority to ${priority} for ${successCount} task(s)`);
+    setSelectedTaskIds(new Set());
+    loadBacklog();
+  };
+
+  const handleBulkAssigneeChange = async (assigneeId: string | null) => {
+    const selectedList = tasks.filter((t) => selectedTaskIds.has(t.id));
+    if (!selectedList.length) return;
+    setIsProcessingBulk(true);
+    let successCount = 0;
+
+    for (const task of selectedList) {
+      try {
+        await taskService.updateTask(organizationId, projectId, task.id, {
+          assignee_id: assigneeId,
+          version: task.version,
+        });
+        successCount++;
+      } catch {
+        // Continue
+      }
+    }
+
+    setIsProcessingBulk(false);
+    toast.success(
+      assigneeId ? `Assigned ${successCount} task(s)` : `Unassigned ${successCount} task(s)`
+    );
+    setSelectedTaskIds(new Set());
+    loadBacklog();
+  };
+
+  const handleBulkDelete = async () => {
+    const selectedList = tasks.filter((t) => selectedTaskIds.has(t.id));
+    if (!selectedList.length) return;
+    setIsProcessingBulk(true);
+    let successCount = 0;
+
+    for (const task of selectedList) {
+      try {
+        await taskService.deleteTask(organizationId, projectId, task.id);
+        successCount++;
+      } catch {
+        // Continue
+      }
+    }
+
+    setIsProcessingBulk(false);
+    setIsDeleteConfirmOpen(false);
+    toast.success(`Deleted ${successCount} task(s)`);
+    setSelectedTaskIds(new Set());
+    loadBacklog();
   };
 
   // Assign tasks to a sprint
@@ -406,13 +524,13 @@ export function BacklogView({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            {activeOrDraftSprints.length > 0 ? (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activeOrDraftSprints.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
-                    disabled={isAssigning}
+                    disabled={isAssigning || isProcessingBulk}
                     className="h-7 gap-1.5 text-xs"
                   >
                     <FolderPlus className="h-3.5 w-3.5" />
@@ -443,11 +561,128 @@ export function BacklogView({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                No active or draft sprints available.
-              </span>
             )}
+
+            {/* Bulk Status */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isProcessingBulk}
+                  className="h-7 gap-1 text-xs"
+                >
+                  <ArrowRightCircle className="h-3.5 w-3.5 text-primary" />
+                  <span>Status</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuLabel className="text-xs">
+                  Change Status
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleBulkStatusChange("todo")}
+                  className="text-xs cursor-pointer"
+                >
+                  To Do
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleBulkStatusChange("in_progress")}
+                  className="text-xs cursor-pointer"
+                >
+                  In Progress
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleBulkStatusChange("done")}
+                  className="text-xs cursor-pointer"
+                >
+                  Done
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Bulk Priority */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isProcessingBulk}
+                  className="h-7 gap-1 text-xs"
+                >
+                  <Flag className="h-3.5 w-3.5 text-orange-500" />
+                  <span>Priority</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuLabel className="text-xs">
+                  Set Priority
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {(
+                  ["urgent", "high", "medium", "low", "lowest"] as const
+                ).map((p) => (
+                  <DropdownMenuItem
+                    key={p}
+                    onClick={() => handleBulkPriorityChange(p)}
+                    className="capitalize text-xs cursor-pointer"
+                  >
+                    {p}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Bulk Assignee */}
+            {members.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isProcessingBulk}
+                    className="h-7 gap-1 text-xs"
+                  >
+                    <UserCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Assign</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 max-h-52 overflow-y-auto">
+                  <DropdownMenuLabel className="text-xs">
+                    Assign Member
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleBulkAssigneeChange(null)}
+                    className="text-xs text-muted-foreground cursor-pointer"
+                  >
+                    Unassigned
+                  </DropdownMenuItem>
+                  {members.map((m) => (
+                    <DropdownMenuItem
+                      key={m.user_id}
+                      onClick={() => handleBulkAssigneeChange(m.user_id)}
+                      className="text-xs cursor-pointer"
+                    >
+                      {m.user?.full_name || m.user?.email || m.user_id}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Bulk Delete */}
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={isProcessingBulk}
+              onClick={() => setIsDeleteConfirmOpen(true)}
+              className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              title="Delete Selected Tasks"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
 
             <Button
               variant="ghost"
@@ -728,6 +963,17 @@ export function BacklogView({
           );
           loadBacklog();
         }}
+      />
+
+      {/* Bulk Delete Confirmation */}
+      <ConfirmDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        title="Delete Selected Backlog Tasks?"
+        description={`Are you sure you want to permanently delete ${selectedTaskIds.size} task(s)? This action cannot be undone.`}
+        confirmLabel={isProcessingBulk ? "Deleting..." : "Delete Tasks"}
+        isDestructive={true}
+        onConfirm={handleBulkDelete}
       />
     </div>
   );
