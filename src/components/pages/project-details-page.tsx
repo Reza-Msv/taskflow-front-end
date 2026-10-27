@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Edit2,
   Calendar,
+  Layers,
 } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { Button } from "@/components/ui/button";
@@ -349,6 +350,20 @@ export function ProjectDetailsPage({
             >
               <FolderKanban className="h-4 w-4" />
               <span>Open Board</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                router.push(
+                  `/${currentLocale}/organizations/${organizationId}/projects/${project.id}/scrum`
+                )
+              }
+              className="gap-1.5"
+            >
+              <Layers className="h-4 w-4 text-primary" />
+              <span>Scrum & Sprints</span>
             </Button>
 
             {canManageProject && (

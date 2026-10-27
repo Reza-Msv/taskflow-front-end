@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, RefreshCw, AlertCircle, Kanban, LayoutList } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, AlertCircle, Kanban, LayoutList, Layers } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { KanbanBoard } from "@/components/shared/kanban-board";
 import { FilterBar } from "@/components/shared/filter-bar";
@@ -511,6 +511,19 @@ export function ProjectBoardPage({
               </Button>
             </div>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                router.push(
+                  `/${currentLocale}/organizations/${organizationId}/projects/${projectId}/scrum`
+                )
+              }
+              className="gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Scrum & Sprints</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
