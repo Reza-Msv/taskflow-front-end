@@ -579,4 +579,170 @@ export interface NotificationUnreadCountResponse {
   unread_count: number;
 }
 
+// ==========================================
+// Scrum & Sprint Management Interfaces
+// ==========================================
+
+export type SprintStatus = "draft" | "active" | "completed" | "cancelled";
+
+export interface SprintResponse {
+  id: string;
+  project_id: string;
+  name: string;
+  goal?: string | null;
+  status: SprintStatus | string;
+  start_date?: string | null;
+  end_date?: string | null;
+  completed_at?: string | null;
+  total_tasks: number;
+  completed_tasks: number;
+  total_points: number;
+  completed_points: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SprintListResponse {
+  items: SprintResponse[];
+  total: number;
+}
+
+export interface SprintCreateRequest {
+  name: string;
+  goal?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface SprintUpdateRequest {
+  name?: string | null;
+  goal?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface SprintStartRequest {
+  start_date?: string | null;
+  end_date?: string | null;
+  goal?: string | null;
+}
+
+export interface SprintCompleteRequest {
+  move_unfinished_to: "backlog" | "next_sprint";
+  target_sprint_id?: string | null;
+}
+
+export interface SprintAssignTasksRequest {
+  task_ids: string[];
+}
+
+export interface BacklogMoveTasksRequest {
+  task_ids: string[];
+}
+
+export interface BacklogReorderRequest {
+  task_id?: string | null;
+  ordered_task_ids?: string[] | null;
+  before_task_id?: string | null;
+  after_task_id?: string | null;
+  rank?: string | null;
+}
+
+export interface BacklogSummaryResponse {
+  total_tasks: number;
+  total_points: number;
+  unestimated_tasks: number;
+  items: WorkItemResponse[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export interface EstimateTaskRequest {
+  estimated_points: number | null;
+}
+
+export interface SprintSummaryResponse {
+  sprint_id: string;
+  sprint_name: string;
+  project_id: string;
+  status: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  completed_at?: string | null;
+  total_task_count: number;
+  completed_task_count: number;
+  incomplete_task_count: number;
+  remaining_task_count: number;
+  total_estimated_points: number;
+  completed_points: number;
+  remaining_points: number;
+  unestimated_task_count: number;
+  completion_percentage_tasks: number;
+  completion_percentage_points: number;
+}
+
+export interface BurndownDataPoint {
+  date: string;
+  remaining_story_points?: number | null;
+  remaining_tasks?: number | null;
+  completed_story_points: number;
+  completed_tasks: number;
+  ideal_story_points?: number | null;
+  ideal_tasks?: number | null;
+  is_historical_reconstructed: boolean;
+  data_available: boolean;
+  notes?: string | null;
+}
+
+export interface SprintBurndownResponse {
+  sprint_id: string;
+  sprint_name: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  status: string;
+  total_story_points: number;
+  total_tasks: number;
+  data_points: BurndownDataPoint[];
+  metric_types: string[];
+  reconstruction_policy: string;
+}
+
+export interface SprintVelocityItem {
+  sprint_id: string;
+  sprint_name: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  completed_at?: string | null;
+  committed_points: number;
+  completed_points: number;
+  committed_tasks: number;
+  completed_tasks: number;
+}
+
+export interface ProjectVelocityResponse {
+  project_id: string;
+  completed_sprints_count: number;
+  average_velocity_points: number;
+  average_velocity_tasks: number;
+  sprints: SprintVelocityItem[];
+  policy_notes: string;
+}
+
+export interface SprintRetrospectiveRequest {
+  what_went_well?: string | null;
+  what_could_be_improved?: string | null;
+  action_items?: string | null;
+}
+
+export interface SprintRetrospectiveResponse {
+  id: string;
+  sprint_id: string;
+  what_went_well?: string | null;
+  what_could_be_improved?: string | null;
+  action_items?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 
