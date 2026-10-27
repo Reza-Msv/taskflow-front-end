@@ -99,6 +99,13 @@ export async function apiClient<T>(
     if (err instanceof ApiClientError) {
       throw err;
     }
+    // Re-throw deliberate AbortError so cancellation does not trigger backend unavailable alerts
+    if (
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError")
+    ) {
+      throw err;
+    }
     throw new ApiClientError(0, {
       error: {
         code: "BACKEND_UNAVAILABLE",

@@ -107,4 +107,16 @@ describe("apiClient", () => {
     expect(unauthorizedSpy).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
+
+  it("rethrows AbortError without converting to BACKEND_UNAVAILABLE", async () => {
+    const abortError = new DOMException(
+      "The user aborted a request.",
+      "AbortError"
+    );
+    global.fetch = vi.fn().mockRejectedValue(abortError);
+
+    await expect(apiClient("/api/v1/tasks")).rejects.toThrow(
+      "The user aborted a request."
+    );
+  });
 });

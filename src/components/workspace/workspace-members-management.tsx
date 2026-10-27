@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Users,
   UserPlus,
@@ -104,15 +104,17 @@ export function WorkspaceMembersManagement({
     useState<OrganizationMembershipResponse | null>(null);
   const [isRemovingMember, setIsRemovingMember] = useState(false);
 
-  // Filter members by name or email
-  const filteredMembers = members.filter((m) => {
-    if (!searchQuery.trim()) return true;
+  // Filter members by name or email (memoized)
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return members;
     const q = searchQuery.toLowerCase();
-    const name = m.user?.full_name?.toLowerCase() || "";
-    const email = m.user?.email?.toLowerCase() || "";
-    const id = m.user_id.toLowerCase();
-    return name.includes(q) || email.includes(q) || id.includes(q);
-  });
+    return members.filter((m) => {
+      const name = m.user?.full_name?.toLowerCase() || "";
+      const email = m.user?.email?.toLowerCase() || "";
+      const id = m.user_id.toLowerCase();
+      return name.includes(q) || email.includes(q) || id.includes(q);
+    });
+  }, [members, searchQuery]);
 
   const handleRoleChange = async (targetUserId: string, newRole: string) => {
     setUpdatingMemberId(targetUserId);
@@ -123,7 +125,7 @@ export function WorkspaceMembersManagement({
       toast.success("Member role updated successfully");
       onRefresh();
     } catch (err: unknown) {
-      console.log("INV ERROR CAUGHT:", err); if (err instanceof ApiClientError) {
+      if (err instanceof ApiClientError) {
         toast.error(err.message || "Failed to update member role");
       } else {
         toast.error("Failed to update member role");
@@ -144,9 +146,7 @@ export function WorkspaceMembersManagement({
         memberToRemove.user_id
       );
       toast.success(
-        isSelf
-          ? "You have left the workspace"
-          : "Member removed from workspace"
+        isSelf ? "You have left the workspace" : "Member removed from workspace"
       );
       setMemberToRemove(null);
       onRefresh();
@@ -324,13 +324,11 @@ export function WorkspaceMembersManagement({
                   // Owner can change anyone's role (except if last owner demoting self)
                   // Admin can only change non-owner roles
                   const canEditThisRole =
-                    isAdminOrOwner &&
-                    (!isTargetOwner || (isOwner && !isSelf));
+                    isAdminOrOwner && (!isTargetOwner || (isOwner && !isSelf));
 
                   // Can remove: self (leave) or admin/owner removing permitted target
                   const canRemoveThisMember =
-                    isSelf ||
-                    (isAdminOrOwner && (!isTargetOwner || isOwner));
+                    isSelf || (isAdminOrOwner && (!isTargetOwner || isOwner));
 
                   return (
                     <TableRow key={m.id} className="hover:bg-muted/30">
@@ -410,9 +408,7 @@ export function WorkspaceMembersManagement({
                                 ? "h-7 gap-1 px-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
                                 : "h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
                             }
-                            title={
-                              isSelf ? "Leave workspace" : "Remove member"
-                            }
+                            title={isSelf ? "Leave workspace" : "Remove member"}
                           >
                             {isSelf ? (
                               <>

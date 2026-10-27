@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useTransition } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useTransition,
+  useRef,
+} from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
@@ -159,10 +165,13 @@ export function ReportsPage({
     };
   }, [organizationId, projectId]);
 
+  const reportsRequestIdRef = useRef(0);
+
   // 2. Load Reports Data for selected project and date range
   const loadReports = useCallback(async () => {
     if (!organizationId || !projectId) return;
 
+    const curReqId = ++reportsRequestIdRef.current;
     setIsLoadingReports(true);
     setError(null);
     setPermissionError(false);
@@ -174,19 +183,25 @@ export function ReportsPage({
         dateRange,
         interval
       );
-      setReportData(data);
+      if (curReqId === reportsRequestIdRef.current) {
+        setReportData(data);
+      }
     } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        if (err.status === 403 || err.status === 404) {
-          setPermissionError(true);
+      if (curReqId === reportsRequestIdRef.current) {
+        if (err instanceof ApiClientError) {
+          if (err.status === 403 || err.status === 404) {
+            setPermissionError(true);
+          } else {
+            setError(err.message || "Failed to load project reports.");
+          }
         } else {
-          setError(err.message || "Failed to load project reports.");
+          setError("Network error while retrieving reports data.");
         }
-      } else {
-        setError("Network error while retrieving reports data.");
       }
     } finally {
-      setIsLoadingReports(false);
+      if (curReqId === reportsRequestIdRef.current) {
+        setIsLoadingReports(false);
+      }
     }
   }, [organizationId, projectId, dateRange, interval]);
 
