@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   Search,
   Plus,
@@ -37,7 +38,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { taskService } from "@/services/task-service";
-import { scrumService, type BacklogQueryParams } from "@/services/scrum-service";
+import {
+  scrumService,
+  type BacklogQueryParams,
+} from "@/services/scrum-service";
 import { TaskEstimateDialog } from "@/components/scrum/task-estimate-dialog";
 import { ApiClientError } from "@/services/api-client";
 import { toast } from "sonner";
@@ -78,6 +82,7 @@ export function BacklogView({
 
   // Filters & Search
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -88,17 +93,25 @@ export function BacklogView({
   const pageSize = 50;
 
   // Selected tasks for bulk operations
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
+    new Set()
+  );
   const [isAssigning, setIsAssigning] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
+  // Request sequence ref to discard stale responses
+  const backlogRequestIdRef = useRef(0);
+
   // Task estimate dialog state
-  const [taskToEstimate, setTaskToEstimate] = useState<WorkItemResponse | null>(null);
+  const [taskToEstimate, setTaskToEstimate] = useState<WorkItemResponse | null>(
+    null
+  );
   const [isEstimateOpen, setIsEstimateOpen] = useState(false);
 
   const loadBacklog = useCallback(async () => {
+    const curReqId = ++backlogRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -108,31 +121,41 @@ export function BacklogView({
         sort_by: sortBy,
         sort_dir: sortDir,
       };
-      if (search.trim()) params.search = search.trim();
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       if (priorityFilter !== "all") params.priority = priorityFilter;
       if (typeFilter !== "all") params.type = typeFilter;
       if (statusFilter !== "all") params.status = statusFilter;
       if (assigneeFilter !== "all") params.assignee_id = assigneeFilter;
 
-      const res = await scrumService.getBacklog(organizationId, projectId, params);
-      setTasks(res.items || []);
-      setTotalTasks(res.total_tasks || 0);
-      setTotalPoints(res.total_points || 0);
-      setUnestimatedTasks(res.unestimated_tasks || 0);
+      const res = await scrumService.getBacklog(
+        organizationId,
+        projectId,
+        params
+      );
+      if (curReqId === backlogRequestIdRef.current) {
+        setTasks(res.items || []);
+        setTotalTasks(res.total_tasks || 0);
+        setTotalPoints(res.total_points || 0);
+        setUnestimatedTasks(res.unestimated_tasks || 0);
+      }
     } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        setError(err.message || "Failed to load product backlog");
-      } else {
-        setError("Network error loading product backlog");
+      if (curReqId === backlogRequestIdRef.current) {
+        if (err instanceof ApiClientError) {
+          setError(err.message || "Failed to load product backlog");
+        } else {
+          setError("Network error loading product backlog");
+        }
       }
     } finally {
-      setIsLoading(false);
+      if (curReqId === backlogRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [
     organizationId,
     projectId,
     page,
-    search,
+    debouncedSearch,
     priorityFilter,
     typeFilter,
     statusFilter,
@@ -223,7 +246,9 @@ export function BacklogView({
     }
 
     setIsProcessingBulk(false);
-    toast.success(`Updated priority to ${priority} for ${successCount} task(s)`);
+    toast.success(
+      `Updated priority to ${priority} for ${successCount} task(s)`
+    );
     setSelectedTaskIds(new Set());
     loadBacklog();
   };
@@ -248,7 +273,9 @@ export function BacklogView({
 
     setIsProcessingBulk(false);
     toast.success(
-      assigneeId ? `Assigned ${successCount} task(s)` : `Unassigned ${successCount} task(s)`
+      assigneeId
+        ? `Assigned ${successCount} task(s)`
+        : `Unassigned ${successCount} task(s)`
     );
     setSelectedTaskIds(new Set());
     loadBacklog();
@@ -281,9 +308,14 @@ export function BacklogView({
     if (!taskIds.length) return;
     setIsAssigning(true);
     try {
-      await scrumService.assignTasksToSprint(organizationId, projectId, sprintId, {
-        task_ids: taskIds,
-      });
+      await scrumService.assignTasksToSprint(
+        organizationId,
+        projectId,
+        sprintId,
+        {
+          task_ids: taskIds,
+        }
+      );
       const sprint = sprints.find((s) => s.id === sprintId);
       toast.success(
         `Assigned ${taskIds.length} task(s) to ${sprint ? sprint.name : "sprint"}`
@@ -303,7 +335,10 @@ export function BacklogView({
   };
 
   // Reorder task up or down
-  const handleMoveTaskOrder = async (taskIndex: number, direction: "up" | "down") => {
+  const handleMoveTaskOrder = async (
+    taskIndex: number,
+    direction: "up" | "down"
+  ) => {
     const targetIndex = direction === "up" ? taskIndex - 1 : taskIndex + 1;
     if (targetIndex < 0 || targetIndex >= tasks.length) return;
 
@@ -497,7 +532,9 @@ export function BacklogView({
             className="h-8 gap-1.5 px-2.5 text-xs"
             title="Refresh Backlog"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
+            />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
 
@@ -519,12 +556,10 @@ export function BacklogView({
         <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-4 py-2.5 text-xs animate-in fade-in">
           <div className="flex items-center gap-2 font-medium text-foreground">
             <CheckCircle2 className="h-4 w-4 text-primary" />
-            <span>
-              {selectedTaskIds.size} task(s) selected
-            </span>
+            <span>{selectedTaskIds.size} task(s) selected</span>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex flex-wrap items-center gap-1.5">
             {activeOrDraftSprints.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -552,7 +587,9 @@ export function BacklogView({
                     >
                       <span className="truncate">{s.name}</span>
                       <Badge
-                        variant={s.status === "active" ? "default" : "secondary"}
+                        variant={
+                          s.status === "active" ? "default" : "secondary"
+                        }
                         className="text-[10px] capitalize"
                       >
                         {s.status}
@@ -583,19 +620,19 @@ export function BacklogView({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => handleBulkStatusChange("todo")}
-                  className="text-xs cursor-pointer"
+                  className="cursor-pointer text-xs"
                 >
                   To Do
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleBulkStatusChange("in_progress")}
-                  className="text-xs cursor-pointer"
+                  className="cursor-pointer text-xs"
                 >
                   In Progress
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleBulkStatusChange("done")}
-                  className="text-xs cursor-pointer"
+                  className="cursor-pointer text-xs"
                 >
                   Done
                 </DropdownMenuItem>
@@ -620,17 +657,17 @@ export function BacklogView({
                   Set Priority
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {(
-                  ["urgent", "high", "medium", "low", "lowest"] as const
-                ).map((p) => (
-                  <DropdownMenuItem
-                    key={p}
-                    onClick={() => handleBulkPriorityChange(p)}
-                    className="capitalize text-xs cursor-pointer"
-                  >
-                    {p}
-                  </DropdownMenuItem>
-                ))}
+                {(["urgent", "high", "medium", "low", "lowest"] as const).map(
+                  (p) => (
+                    <DropdownMenuItem
+                      key={p}
+                      onClick={() => handleBulkPriorityChange(p)}
+                      className="cursor-pointer text-xs capitalize"
+                    >
+                      {p}
+                    </DropdownMenuItem>
+                  )
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -648,14 +685,17 @@ export function BacklogView({
                     <span>Assign</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 max-h-52 overflow-y-auto">
+                <DropdownMenuContent
+                  align="end"
+                  className="max-h-52 w-52 overflow-y-auto"
+                >
                   <DropdownMenuLabel className="text-xs">
                     Assign Member
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => handleBulkAssigneeChange(null)}
-                    className="text-xs text-muted-foreground cursor-pointer"
+                    className="cursor-pointer text-xs text-muted-foreground"
                   >
                     Unassigned
                   </DropdownMenuItem>
@@ -663,7 +703,7 @@ export function BacklogView({
                     <DropdownMenuItem
                       key={m.user_id}
                       onClick={() => handleBulkAssigneeChange(m.user_id)}
-                      className="text-xs cursor-pointer"
+                      className="cursor-pointer text-xs"
                     >
                       {m.user?.full_name || m.user?.email || m.user_id}
                     </DropdownMenuItem>
@@ -727,8 +767,14 @@ export function BacklogView({
                   ? "No tasks match your current filter criteria."
                   : "All project work is currently assigned to sprints, or no tasks have been created yet."
               }
-              actionLabel={canModifyTask && onCreateTask ? "Create Backlog Task" : undefined}
-              onAction={canModifyTask && onCreateTask ? onCreateTask : undefined}
+              actionLabel={
+                canModifyTask && onCreateTask
+                  ? "Create Backlog Task"
+                  : undefined
+              }
+              onAction={
+                canModifyTask && onCreateTask ? onCreateTask : undefined
+              }
             />
           </div>
         ) : (
@@ -757,8 +803,11 @@ export function BacklogView({
             {/* Rows */}
             {tasks.map((task, idx) => {
               const isSelected = selectedTaskIds.has(task.id);
-              const assignee = members.find((m) => m.user_id === task.assignee_id);
-              const assigneeName = assignee?.user?.full_name || assignee?.user?.email;
+              const assignee = members.find(
+                (m) => m.user_id === task.assignee_id
+              );
+              const assigneeName =
+                assignee?.user?.full_name || assignee?.user?.email;
 
               return (
                 <div
@@ -843,7 +892,7 @@ export function BacklogView({
                   </span>
 
                   {/* Assignee */}
-                  <div className="hidden md:flex md:w-28 items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+                  <div className="hidden items-center gap-1.5 truncate text-[11px] text-muted-foreground md:flex md:w-28">
                     {assigneeName ? (
                       <>
                         <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-secondary text-[9px] font-semibold text-foreground">

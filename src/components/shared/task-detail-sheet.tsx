@@ -20,6 +20,11 @@ import { taskService } from "@/services/task-service";
 import { collaborationService } from "@/services/collaboration-service";
 import { ApiClientError } from "@/services/api-client";
 import { useOptionalAuth } from "@/modules/auth/context/auth-context";
+import { TaskChecklistsSubtasks } from "@/components/task-detail/task-checklists-subtasks";
+import { TaskAttachmentsTab } from "@/components/task-detail/task-attachments-tab";
+import { TaskDependenciesTab } from "@/components/task-detail/task-dependencies-tab";
+import { TaskCommentsTab } from "@/components/task-detail/task-comments-tab";
+import { TaskActivityTab } from "@/components/task-detail/task-activity-tab";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -118,7 +123,8 @@ function formatDate(isoString?: string | null): string {
   }
 }
 
-function formatRelativeTime(isoString: string): string {
+function formatRelativeTime(isoString?: string | null): string {
+  if (!isoString) return "";
   try {
     const d = new Date(isoString);
     const now = new Date();
@@ -177,25 +183,15 @@ export function TaskDetailSheet({
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [attachmentToDelete, setAttachmentToDelete] =
     useState<AttachmentResponse | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Comments state
   const [comments, setComments] = useState<WorkItemCommentResponse[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const [newCommentContent, setNewCommentContent] = useState("");
-  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentContent, setEditingCommentContent] = useState("");
-  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
-  // Mention Autocomplete state
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionSuggestions, setMentionSuggestions] = useState<
-    MentionableUserResponse[]
-  >([]);
-  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Request ID refs to drop stale asynchronous responses on rapid task switching
+  const taskRequestIdRef = useRef(0);
+  const commentsRequestIdRef = useRef(0);
+  const activitiesRequestIdRef = useRef(0);
 
   // Activity History state
   const [activities, setActivities] = useState<WorkItemActivityResponse[]>([]);
@@ -223,7 +219,7 @@ export function TaskDetailSheet({
 
   const isPredecessorBlocked = Boolean(
     parentTask &&
-      !["done", "completed"].includes(parentTask.status?.toLowerCase() || "")
+    !["done", "completed"].includes(parentTask.status?.toLowerCase() || "")
   );
 
   // Synchronize activeTaskId when prop taskId changes
@@ -235,6 +231,7 @@ export function TaskDetailSheet({
   // Load Task Details
   const loadTaskDetails = useCallback(
     async (id: string) => {
+      const currentReqId = ++taskRequestIdRef.current;
       setIsLoading(true);
       setError(null);
       try {
@@ -243,6 +240,7 @@ export function TaskDetailSheet({
           projectId,
           id
         );
+        if (currentReqId !== taskRequestIdRef.current) return;
         setTask(detail);
         setTitleValue(detail.title);
         setDescValue(detail.description || "");
@@ -255,20 +253,35 @@ export function TaskDetailSheet({
           setIsLoadingParent(true);
           taskService
             .getTask(organizationId, projectId, detail.parent_id)
-            .then((p) => setParentTask(p))
-            .catch(() => setParentTask(null))
-            .finally(() => setIsLoadingParent(false));
+            .then((p) => {
+              if (currentReqId === taskRequestIdRef.current) {
+                setParentTask(p);
+              }
+            })
+            .catch(() => {
+              if (currentReqId === taskRequestIdRef.current) {
+                setParentTask(null);
+              }
+            })
+            .finally(() => {
+              if (currentReqId === taskRequestIdRef.current) {
+                setIsLoadingParent(false);
+              }
+            });
         } else {
           setParentTask(null);
         }
       } catch (err: unknown) {
+        if (currentReqId !== taskRequestIdRef.current) return;
         if (err instanceof ApiClientError) {
           setError(err.message);
         } else {
           setError("Failed to load task details");
         }
       } finally {
-        setIsLoading(false);
+        if (currentReqId === taskRequestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     },
     [organizationId, projectId]
@@ -369,6 +382,7 @@ export function TaskDetailSheet({
   // Load Comments
   const loadComments = useCallback(
     async (id: string) => {
+      const currentReqId = ++commentsRequestIdRef.current;
       setIsLoadingComments(true);
       try {
         const res = await collaborationService.getComments(
@@ -379,11 +393,14 @@ export function TaskDetailSheet({
             page_size: 50,
           }
         );
+        if (currentReqId !== commentsRequestIdRef.current) return;
         setComments(res.items);
       } catch {
         // Silently handle comments load error
       } finally {
-        setIsLoadingComments(false);
+        if (currentReqId === commentsRequestIdRef.current) {
+          setIsLoadingComments(false);
+        }
       }
     },
     [organizationId, projectId]
@@ -392,6 +409,7 @@ export function TaskDetailSheet({
   // Load Activity History
   const loadActivities = useCallback(
     async (id: string) => {
+      const currentReqId = ++activitiesRequestIdRef.current;
       setIsLoadingActivities(true);
       try {
         const res = await taskService.getTaskHistory(
@@ -402,11 +420,14 @@ export function TaskDetailSheet({
             page_size: 50,
           }
         );
+        if (currentReqId !== activitiesRequestIdRef.current) return;
         setActivities(res.items || []);
       } catch {
         // Silently handle activity load error
       } finally {
-        setIsLoadingActivities(false);
+        if (currentReqId === activitiesRequestIdRef.current) {
+          setIsLoadingActivities(false);
+        }
       }
     },
     [organizationId, projectId]
@@ -667,7 +688,6 @@ export function TaskDetailSheet({
       );
       setAttachments((prev) => [uploaded, ...prev]);
       toast.success(`Attached ${file.name}`);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         toast.error(err.message);
@@ -701,195 +721,6 @@ export function TaskDetailSheet({
     } finally {
       setAttachmentToDelete(null);
     }
-  };
-
-  // --- Mention Autocomplete Logic ---
-  const handleCommentChange = async (
-    e: React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    const val = e.target.value;
-    setNewCommentContent(val);
-
-    const cursorPos = e.target.selectionStart;
-    const textBeforeCursor = val.slice(0, cursorPos);
-    const atMatch = textBeforeCursor.match(/@(\w*)$/);
-
-    if (atMatch && activeTaskId) {
-      const query = atMatch[1];
-      setMentionQuery(query);
-      try {
-        const results = await collaborationService.getMentionableMembers(
-          organizationId,
-          projectId,
-          activeTaskId,
-          query
-        );
-        setMentionSuggestions(results);
-        setSelectedMentionIndex(0);
-      } catch {
-        setMentionSuggestions([]);
-      }
-    } else {
-      setMentionQuery(null);
-      setMentionSuggestions([]);
-    }
-  };
-
-  const handleSelectMention = (user: MentionableUserResponse) => {
-    if (!textareaRef.current) return;
-    const cursorPos = textareaRef.current.selectionStart;
-    const textBeforeCursor = newCommentContent.slice(0, cursorPos);
-    const textAfterCursor = newCommentContent.slice(cursorPos);
-    const atIndex = textBeforeCursor.lastIndexOf("@");
-
-    if (atIndex !== -1) {
-      const mentionName = user.full_name || user.name;
-      const updatedBefore =
-        textBeforeCursor.slice(0, atIndex) + `@${mentionName} `;
-      setNewCommentContent(updatedBefore + textAfterCursor);
-      setMentionedUserIds((prev) => Array.from(new Set([...prev, user.id])));
-      setMentionQuery(null);
-      setMentionSuggestions([]);
-
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-          textareaRef.current.setSelectionRange(
-            updatedBefore.length,
-            updatedBefore.length
-          );
-        }
-      }, 0);
-    }
-  };
-
-  const handleCommentKeyDown = (
-    e: React.KeyboardEvent<HTMLTextAreaElement>
-  ) => {
-    if (mentionSuggestions.length > 0 && mentionQuery !== null) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedMentionIndex(
-          (prev) => (prev + 1) % mentionSuggestions.length
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedMentionIndex(
-          (prev) =>
-            (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length
-        );
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        const selected = mentionSuggestions[selectedMentionIndex];
-        if (selected) handleSelectMention(selected);
-        return;
-      }
-      if (e.key === "Escape") {
-        setMentionQuery(null);
-        setMentionSuggestions([]);
-        return;
-      }
-    }
-  };
-
-  // --- Comments CRUD ---
-  const handleCreateComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCommentContent.trim() || !activeTaskId) return;
-    setIsSubmittingComment(true);
-    try {
-      const created = await collaborationService.createComment(
-        organizationId,
-        projectId,
-        activeTaskId,
-        {
-          content: newCommentContent.trim(),
-          mentioned_user_ids:
-            mentionedUserIds.length > 0 ? mentionedUserIds : undefined,
-        }
-      );
-      setComments((prev) => [created, ...prev]);
-      setNewCommentContent("");
-      setMentionedUserIds([]);
-      toast.success("Comment added");
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        toast.error(err.message);
-      } else {
-        toast.error("Failed to post comment");
-      }
-    } finally {
-      setIsSubmittingComment(false);
-    }
-  };
-
-  const handleUpdateComment = async (commentId: string) => {
-    if (!editingCommentContent.trim() || !activeTaskId) return;
-    try {
-      const updated = await collaborationService.updateComment(
-        organizationId,
-        projectId,
-        activeTaskId,
-        commentId,
-        { content: editingCommentContent.trim() }
-      );
-      setComments((prev) =>
-        prev.map((c) => (c.id === commentId ? updated : c))
-      );
-      setEditingCommentId(null);
-      setEditingCommentContent("");
-      toast.success("Comment updated");
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        toast.error(err.message);
-      } else {
-        toast.error("Failed to update comment");
-      }
-    }
-  };
-
-  const handleDeleteComment = async () => {
-    if (!commentToDelete || !activeTaskId) return;
-    try {
-      await collaborationService.deleteComment(
-        organizationId,
-        projectId,
-        activeTaskId,
-        commentToDelete
-      );
-      setComments((prev) => prev.filter((c) => c.id !== commentToDelete));
-      toast.success("Comment deleted");
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        toast.error(err.message);
-      } else {
-        toast.error("Failed to delete comment");
-      }
-    } finally {
-      setCommentToDelete(null);
-    }
-  };
-
-  // Render formatted comment text with highlighted @mentions
-  const renderCommentContent = (content: string) => {
-    const parts = content.split(/(@[\w\s.-]+?)(?=\s|[.,!?]|$)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith("@")) {
-        return (
-          <span
-            key={index}
-            className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-xs font-semibold text-primary"
-          >
-            {part}
-          </span>
-        );
-      }
-      return part;
-    });
   };
 
   // Checklist counts & progress
@@ -1032,9 +863,12 @@ export function TaskDetailSheet({
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
                       <div>
-                        <span className="font-semibold">Blocked by Predecessor: </span>
+                        <span className="font-semibold">
+                          Blocked by Predecessor:{" "}
+                        </span>
                         <span>
-                          [{parentTask?.issue_key}] {parentTask?.title} is still {parentTask?.status}.
+                          [{parentTask?.issue_key}] {parentTask?.title} is still{" "}
+                          {parentTask?.status}.
                         </span>
                       </div>
                     </div>
@@ -1183,789 +1017,79 @@ export function TaskDetailSheet({
 
                   {/* TAB 1: Checklists, Subtasks, Attachments */}
                   <TabsContent value="work_items" className="space-y-6">
-                    {/* Checklists Section */}
-                    <div className="rounded-lg border border-border bg-card p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CheckSquare className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">
-                            Checklist
-                          </h3>
-                          {checklists.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {completedChecklistsCount}/{checklists.length} (
-                              {checklistProgressPercent}%)
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                    <TaskChecklistsSubtasks
+                      checklists={checklists}
+                      subtasks={subtasks}
+                      newChecklistTitle={newChecklistTitle}
+                      isAddingChecklist={isAddingChecklist}
+                      newSubtaskTitle={newSubtaskTitle}
+                      isAddingSubtask={isAddingSubtask}
+                      onChecklistTitleChange={setNewChecklistTitle}
+                      onSubtaskTitleChange={setNewSubtaskTitle}
+                      onToggleChecklistItem={handleToggleChecklistItem}
+                      onDeleteChecklistItem={handleDeleteChecklistItem}
+                      onAddChecklistItem={handleAddChecklistItem}
+                      onAddSubtask={handleAddSubtask}
+                      onNavigateToSubtask={handleNavigateToSubtask}
+                    />
 
-                      {/* Progress bar */}
-                      {checklists.length > 0 && (
-                        <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full bg-primary transition-all duration-300"
-                            style={{ width: `${checklistProgressPercent}%` }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Checklist items list */}
-                      <div className="space-y-1.5">
-                        {checklists.map((item) => (
-                          <div
-                            key={item.id}
-                            className="group flex items-center justify-between rounded-md p-1.5 transition-colors hover:bg-muted/40"
-                          >
-                            <label className="flex flex-1 cursor-pointer items-center gap-2.5 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={item.is_completed}
-                                onChange={() => handleToggleChecklistItem(item)}
-                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                              />
-                              <span
-                                className={cn(
-                                  "text-foreground",
-                                  item.is_completed &&
-                                    "text-muted-foreground line-through"
-                                )}
-                              >
-                                {item.title}
-                              </span>
-                            </label>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                              onClick={() => handleDeleteChecklistItem(item.id)}
-                              title="Delete checklist item"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Add checklist input */}
-                      <form
-                        onSubmit={handleAddChecklistItem}
-                        className="mt-3 flex items-center gap-2"
-                      >
-                        <Input
-                          value={newChecklistTitle}
-                          onChange={(e) => setNewChecklistTitle(e.target.value)}
-                          placeholder="Add checklist item..."
-                          className="h-8 text-xs"
-                          disabled={isAddingChecklist}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs"
-                          disabled={
-                            !newChecklistTitle.trim() || isAddingChecklist
-                          }
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>Add</span>
-                        </Button>
-                      </form>
-                    </div>
-
-                    {/* Subtasks Section */}
-                    <div className="rounded-lg border border-border bg-card p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <GitBranch className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">
-                            Subtasks
-                          </h3>
-                          {subtasks.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {completedSubtasksCount}/{subtasks.length} (
-                              {subtaskProgressPercent}%)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Subtasks Progress */}
-                      {subtasks.length > 0 && (
-                        <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full bg-primary transition-all duration-300"
-                            style={{ width: `${subtaskProgressPercent}%` }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Subtasks list */}
-                      <div className="space-y-1.5">
-                        {subtasks.map((st) => (
-                          <div
-                            key={st.id}
-                            onClick={() => handleNavigateToSubtask(st)}
-                            className="group flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-background/50 p-2 transition-colors hover:border-primary/40 hover:bg-card-hover"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <Badge
-                                variant="outline"
-                                className="font-mono text-[10px]"
-                              >
-                                {st.issue_key}
-                              </Badge>
-                              <span className="text-xs font-medium text-foreground group-hover:text-primary">
-                                {st.title}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <Badge
-                                variant={
-                                  st.status === "done" ? "default" : "secondary"
-                                }
-                                className="text-[10px] capitalize"
-                              >
-                                {st.status}
-                              </Badge>
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Add subtask input */}
-                      <form
-                        onSubmit={handleAddSubtask}
-                        className="mt-3 flex items-center gap-2"
-                      >
-                        <Input
-                          value={newSubtaskTitle}
-                          onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                          placeholder="Create subtask..."
-                          className="h-8 text-xs"
-                          disabled={isAddingSubtask}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs"
-                          disabled={!newSubtaskTitle.trim() || isAddingSubtask}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>Create</span>
-                        </Button>
-                      </form>
-                    </div>
-
-                    {/* Attachments Section */}
-                    <div className="rounded-lg border border-border bg-card p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">
-                            Attachments
-                          </h3>
-                          <span className="text-xs text-muted-foreground">
-                            ({attachments.length})
-                          </span>
-                        </div>
-
-                        {/* File upload trigger */}
-                        <label className="cursor-pointer">
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => handleFileUpload(e.target.files)}
-                            disabled={isUploadingAttachment}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1 px-2.5 text-xs"
-                            disabled={isUploadingAttachment}
-                            onClick={() => fileInputRef.current?.click()}
-                          >
-                            <UploadCloud className="h-3.5 w-3.5" />
-                            <span>
-                              {isUploadingAttachment
-                                ? "Uploading..."
-                                : "Upload File"}
-                            </span>
-                          </Button>
-                        </label>
-                      </div>
-
-                      {/* Dropzone hint */}
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          handleFileUpload(e.dataTransfer.files);
-                        }}
-                        className="mb-3 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border py-4 text-center transition-colors hover:border-primary/50 hover:bg-muted/10"
-                      >
-                        <UploadCloud className="mb-1 h-5 w-5 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground">
-                          Click or drag and drop files (Max 10MB)
-                        </p>
-                      </div>
-
-                      {/* Attachments List */}
-                      {attachments.length === 0 ? (
-                        <p className="py-2 text-center text-xs italic text-muted-foreground">
-                          No attachments yet
-                        </p>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {attachments.map((att) => {
-                            const isImage =
-                              att.content_type.startsWith("image/");
-                            const downloadUrl =
-                              taskService.getAttachmentDownloadUrl(
-                                organizationId,
-                                projectId,
-                                activeTaskId!,
-                                att.id
-                              );
-
-                            return (
-                              <div
-                                key={att.id}
-                                className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 p-2 text-xs"
-                              >
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                  {isImage ? (
-                                    <FileImage className="h-5 w-5 shrink-0 text-primary" />
-                                  ) : (
-                                    <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                  )}
-                                  <div className="truncate">
-                                    <p className="truncate font-medium text-foreground">
-                                      {att.file_name || att.filename}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {formatBytes(att.file_size)} •{" "}
-                                      {formatRelativeTime(att.created_at)}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  <a
-                                    href={downloadUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download={att.file_name || att.filename}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    title="Download"
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                  </a>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                    onClick={() => setAttachmentToDelete(att)}
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    <TaskAttachmentsTab
+                      organizationId={organizationId}
+                      projectId={projectId}
+                      taskId={activeTaskId!}
+                      attachments={attachments}
+                      isUploadingAttachment={isUploadingAttachment}
+                      onFileUpload={handleFileUpload}
+                      onDeleteAttachmentClick={(att) =>
+                        setAttachmentToDelete(att)
+                      }
+                    />
                   </TabsContent>
 
                   {/* TAB: Dependencies & Relationships */}
                   <TabsContent value="dependencies" className="space-y-6">
-                    {/* Error Alert if Circular or Invalid */}
-                    {dependencyError && (
-                      <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div className="flex-1">
-                          <p className="font-semibold">
-                            Dependency Validation Failed
-                          </p>
-                          <p className="mt-0.5 text-destructive/90">
-                            {dependencyError}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDependencyError(null)}
-                          className="h-5 w-5 text-destructive hover:bg-destructive/20"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Predecessors Section ("Blocked by") */}
-                    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Link2 className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">
-                            Predecessor (Blocked By)
-                          </h3>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {parentTask ? "1 dependency" : "0 dependencies"}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground">
-                        This task cannot start or complete until its predecessor
-                        work item is resolved.
-                      </p>
-
-                      {isLoadingParent ? (
-                        <Skeleton className="h-14 w-full rounded-lg" />
-                      ) : parentTask ? (
-                        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
-                          <div
-                            onClick={() => handleNavigateToSubtask(parentTask)}
-                            className="flex cursor-pointer items-center gap-3 transition-colors hover:text-primary"
-                          >
-                            <Badge
-                              variant="outline"
-                              className="font-mono text-xs"
-                            >
-                              {parentTask.issue_key}
-                            </Badge>
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">
-                                {parentTask.title}
-                              </p>
-                              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                                <span className="capitalize">
-                                  {parentTask.status}
-                                </span>
-                                {parentTask.priority && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="capitalize">
-                                      {parentTask.priority}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={isUpdatingDependency}
-                            onClick={handleRemovePredecessor}
-                            className="h-8 gap-1.5 text-xs text-destructive hover:bg-destructive/10"
-                            title="Remove predecessor dependency"
-                          >
-                            <Unlink className="h-3.5 w-3.5" />
-                            <span>Unlink</span>
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
-                            No predecessor linked. This task is currently
-                            unblocked.
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <select
-                              aria-label="Select predecessor task"
-                              value={selectedPredecessorId}
-                              onChange={(e) =>
-                                setSelectedPredecessorId(e.target.value)
-                              }
-                              className="h-8 flex-1 rounded-md border border-border bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                              disabled={
-                                isUpdatingDependency || isLoadingProjectTasks
-                              }
-                            >
-                              <option value="">
-                                Select a predecessor task...
-                              </option>
-                              {projectTasksList.map((pt) => (
-                                <option key={pt.id} value={pt.id}>
-                                  [{pt.issue_key}] {pt.title} ({pt.status})
-                                </option>
-                              ))}
-                            </select>
-
-                            <Button
-                              size="sm"
-                              disabled={
-                                !selectedPredecessorId ||
-                                isUpdatingDependency ||
-                                isLoadingProjectTasks
-                              }
-                              onClick={() =>
-                                handleSetPredecessor(selectedPredecessorId)
-                              }
-                              className="h-8 gap-1 bg-primary px-3 text-xs text-primary-foreground"
-                            >
-                              <Link2 className="h-3.5 w-3.5" />
-                              <span>Link</span>
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Successors Section ("Blocks") */}
-                    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Network className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-foreground">
-                            Successors (Blocks)
-                          </h3>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {subtasks.length}{" "}
-                          {subtasks.length === 1 ? "task" : "tasks"}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground">
-                        Work items that depend on this task before they can
-                        finish.
-                      </p>
-
-                      <div className="space-y-1.5">
-                        {subtasks.length === 0 ? (
-                          <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
-                            No successor tasks. This task does not block other
-                            work items.
-                          </div>
-                        ) : (
-                          subtasks.map((st) => (
-                            <div
-                              key={st.id}
-                              onClick={() => handleNavigateToSubtask(st)}
-                              className="group flex cursor-pointer items-center justify-between rounded-lg border border-border/60 bg-background/60 p-2.5 transition-colors hover:border-primary/50 hover:bg-card-hover"
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <Badge
-                                  variant="outline"
-                                  className="font-mono text-xs"
-                                >
-                                  {st.issue_key}
-                                </Badge>
-                                <div>
-                                  <span className="text-xs font-medium text-foreground group-hover:text-primary">
-                                    {st.title}
-                                  </span>
-                                  <div className="text-[10px] capitalize text-muted-foreground">
-                                    {st.status} • {st.priority || "Normal"}
-                                  </div>
-                                </div>
-                              </div>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      {/* Add Successor / Subtask input */}
-                      <form
-                        onSubmit={handleAddSubtask}
-                        className="mt-3 flex items-center gap-2"
-                      >
-                        <Input
-                          value={newSubtaskTitle}
-                          onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                          placeholder="Add child successor task..."
-                          className="h-8 text-xs"
-                          disabled={isAddingSubtask}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs"
-                          disabled={!newSubtaskTitle.trim() || isAddingSubtask}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>Add</span>
-                        </Button>
-                      </form>
-                    </div>
+                    <TaskDependenciesTab
+                      parentTask={parentTask}
+                      isLoadingParent={isLoadingParent}
+                      projectTasksList={projectTasksList}
+                      isLoadingProjectTasks={isLoadingProjectTasks}
+                      selectedPredecessorId={selectedPredecessorId}
+                      isUpdatingDependency={isUpdatingDependency}
+                      dependencyError={dependencyError}
+                      subtasks={subtasks}
+                      newSubtaskTitle={newSubtaskTitle}
+                      isAddingSubtask={isAddingSubtask}
+                      onClearDependencyError={() => setDependencyError(null)}
+                      onSelectPredecessorId={setSelectedPredecessorId}
+                      onSetPredecessor={handleSetPredecessor}
+                      onRemovePredecessor={handleRemovePredecessor}
+                      onNavigateToTask={handleNavigateToSubtask}
+                      onSubtaskTitleChange={setNewSubtaskTitle}
+                      onAddSubtask={handleAddSubtask}
+                    />
                   </TabsContent>
 
                   {/* TAB 2: Comments & @Mentions */}
                   <TabsContent value="comments" className="space-y-4">
-                    {/* New Comment Box */}
-                    <form
-                      onSubmit={handleCreateComment}
-                      className="relative rounded-lg border border-border bg-card p-3"
-                    >
-                      <div className="relative">
-                        <textarea
-                          ref={textareaRef}
-                          value={newCommentContent}
-                          onChange={handleCommentChange}
-                          onKeyDown={handleCommentKeyDown}
-                          placeholder="Write a comment... (Type @ to mention team members)"
-                          rows={3}
-                          className="w-full resize-none rounded-md border border-transparent bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                        />
-
-                        {/* Mention Suggestions Autocomplete Menu */}
-                        {mentionSuggestions.length > 0 &&
-                          mentionQuery !== null && (
-                            <div className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-md border border-border bg-popover p-1 shadow-lg">
-                              <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                                Mention member
-                              </div>
-                              <div className="max-h-40 overflow-y-auto">
-                                {mentionSuggestions.map((user, idx) => (
-                                  <button
-                                    key={user.id}
-                                    type="button"
-                                    onClick={() => handleSelectMention(user)}
-                                    className={cn(
-                                      "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                                      idx === selectedMentionIndex &&
-                                        "bg-accent text-accent-foreground"
-                                    )}
-                                  >
-                                    <Avatar className="h-5 w-5">
-                                      <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
-                                        {(user.full_name ||
-                                          user.name ||
-                                          "U")[0]?.toUpperCase()}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <div className="truncate">
-                                      <p className="font-medium">
-                                        {user.full_name || user.name}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground">
-                                        {user.email}
-                                      </p>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                          <AtSign className="h-3 w-3" />
-                          <span>Type @ to mention</span>
-                        </div>
-
-                        <Button
-                          type="submit"
-                          size="sm"
-                          className="h-8 gap-1.5 px-3 text-xs"
-                          disabled={
-                            !newCommentContent.trim() || isSubmittingComment
-                          }
-                        >
-                          <Send className="h-3 w-3" />
-                          <span>
-                            {isSubmittingComment ? "Posting..." : "Comment"}
-                          </span>
-                        </Button>
-                      </div>
-                    </form>
-
-                    {/* Comments List */}
-                    {isLoadingComments ? (
-                      <div className="space-y-3 py-4">
-                        <Skeleton className="h-16 w-full" />
-                        <Skeleton className="h-16 w-full" />
-                      </div>
-                    ) : comments.length === 0 ? (
-                      <p className="py-6 text-center text-xs italic text-muted-foreground">
-                        No comments yet. Start the conversation!
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {comments.map((comment) => {
-                          const isAuthor =
-                            currentUser?.id === comment.author?.id ||
-                            currentUser?.id === comment.author_id;
-
-                          return (
-                            <div
-                              key={comment.id}
-                              className="rounded-lg border border-border/60 bg-card p-3 text-xs"
-                            >
-                              <div className="mb-2 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary">
-                                      {(comment.author?.full_name ||
-                                        comment.author?.name ||
-                                        "U")[0]?.toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="font-semibold text-foreground">
-                                    {comment.author?.full_name ||
-                                      comment.author?.name ||
-                                      "Unknown User"}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {formatRelativeTime(comment.created_at)}
-                                  </span>
-                                  {comment.is_edited && (
-                                    <span className="rounded bg-muted px-1 text-[9px] text-muted-foreground">
-                                      (edited)
-                                    </span>
-                                  )}
-                                </div>
-
-                                {isAuthor && (
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                      onClick={() => {
-                                        setEditingCommentId(comment.id);
-                                        setEditingCommentContent(
-                                          comment.content
-                                        );
-                                      }}
-                                      title="Edit comment"
-                                    >
-                                      <Edit2 className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                      onClick={() =>
-                                        setCommentToDelete(comment.id)
-                                      }
-                                      title="Delete comment"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-
-                              {editingCommentId === comment.id ? (
-                                <div className="mt-2 space-y-2">
-                                  <textarea
-                                    value={editingCommentContent}
-                                    onChange={(e) =>
-                                      setEditingCommentContent(e.target.value)
-                                    }
-                                    rows={2}
-                                    className="w-full rounded border border-input bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                                  />
-                                  <div className="flex justify-end gap-1.5">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 text-xs"
-                                      onClick={() => {
-                                        setEditingCommentId(null);
-                                        setEditingCommentContent("");
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      className="h-7 text-xs"
-                                      onClick={() =>
-                                        handleUpdateComment(comment.id)
-                                      }
-                                    >
-                                      Save
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="whitespace-pre-wrap leading-relaxed text-foreground">
-                                  {renderCommentContent(comment.content)}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <TaskCommentsTab
+                      organizationId={organizationId}
+                      projectId={projectId}
+                      taskId={activeTaskId!}
+                      currentUserId={currentUser?.id}
+                      comments={comments}
+                      setComments={setComments}
+                      isLoadingComments={isLoadingComments}
+                      formatRelativeTime={formatRelativeTime}
+                    />
                   </TabsContent>
 
                   {/* TAB 3: Activity History */}
                   <TabsContent value="activity" className="space-y-3">
-                    {isLoadingActivities ? (
-                      <div className="space-y-3 py-4">
-                        <Skeleton className="h-12 w-full" />
-                        <Skeleton className="h-12 w-full" />
-                      </div>
-                    ) : activities.length === 0 ? (
-                      <p className="py-6 text-center text-xs italic text-muted-foreground">
-                        No activity recorded yet
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {activities.map((act) => (
-                          <div
-                            key={act.id}
-                            className="flex items-start gap-3 rounded-md border border-border/40 p-2.5 text-xs"
-                          >
-                            <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                            <div className="flex-1 space-y-0.5">
-                              <p className="text-foreground">
-                                <span className="font-semibold text-primary">
-                                  {act.user?.full_name ||
-                                    act.user?.name ||
-                                    "System"}
-                                </span>{" "}
-                                {(
-                                  act.activity_type ||
-                                  act.field ||
-                                  "Updated"
-                                ).replace(/_/g, " ")}
-                                :{" "}
-                                <span className="font-medium">
-                                  {act.field_name || act.field}
-                                </span>
-                              </p>
-                              {(act.old_value || act.new_value) && (
-                                <p className="text-[11px] text-muted-foreground">
-                                  {act.old_value && (
-                                    <span className="line-through">
-                                      {act.old_value}
-                                    </span>
-                                  )}
-                                  {act.old_value && act.new_value && " → "}
-                                  {act.new_value && (
-                                    <span className="font-medium text-foreground">
-                                      {act.new_value}
-                                    </span>
-                                  )}
-                                </p>
-                              )}
-                              <p className="text-[10px] text-muted-foreground">
-                                {formatRelativeTime(act.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <TaskActivityTab
+                      activities={activities}
+                      isLoadingActivities={isLoadingActivities}
+                      formatRelativeTime={formatRelativeTime}
+                    />
                   </TabsContent>
                 </Tabs>
               </div>
@@ -2161,17 +1285,6 @@ export function TaskDetailSheet({
         description={`Are you sure you want to delete attachment "${attachmentToDelete?.file_name || attachmentToDelete?.filename}"?`}
         confirmLabel="Delete"
         onConfirm={handleDeleteAttachment}
-        isDestructive
-      />
-
-      {/* Confirm Comment Deletion */}
-      <ConfirmDialog
-        open={Boolean(commentToDelete)}
-        onOpenChange={(open) => !open && setCommentToDelete(null)}
-        title="Delete Comment"
-        description="Are you sure you want to delete this comment?"
-        confirmLabel="Delete"
-        onConfirm={handleDeleteComment}
         isDestructive
       />
 

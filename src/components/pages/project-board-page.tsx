@@ -1,7 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -22,17 +29,43 @@ import { KanbanBoard } from "@/components/shared/kanban-board";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { AdvancedTaskFilters } from "@/components/shared/advanced-task-filters";
 import { TaskListView } from "@/components/shared/task-list-view";
-import { CalendarView } from "@/components/shared/calendar-view";
-import { TimelineView } from "@/components/shared/timeline-view";
-import { MilestoneModal } from "@/components/shared/milestone-modal";
 import { TaskModal } from "@/components/shared/task-modal";
-import { TaskHistoryDrawer } from "@/components/shared/task-history-drawer";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
-import { WorkflowConfigDialog } from "@/components/workflow/workflow-config-dialog";
 import { BulkTaskActionsBar } from "@/components/shared/bulk-task-actions-bar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { taskService } from "@/services/task-service";
+
+// Dynamic imports for heavy or optional views to reduce initial route bundle
+const CalendarView = dynamic(
+  () => import("@/components/shared/calendar-view").then((m) => m.CalendarView),
+  {
+    loading: () => <Skeleton className="h-[600px] w-full rounded-xl" />,
+  }
+);
+
+const TimelineView = dynamic(
+  () => import("@/components/shared/timeline-view").then((m) => m.TimelineView),
+  {
+    loading: () => <Skeleton className="h-[600px] w-full rounded-xl" />,
+  }
+);
+
+const MilestoneModal = dynamic(() =>
+  import("@/components/shared/milestone-modal").then((m) => m.MilestoneModal)
+);
+
+const TaskHistoryDrawer = dynamic(() =>
+  import("@/components/shared/task-history-drawer").then(
+    (m) => m.TaskHistoryDrawer
+  )
+);
+
+const WorkflowConfigDialog = dynamic(() =>
+  import("@/components/workflow/workflow-config-dialog").then(
+    (m) => m.WorkflowConfigDialog
+  )
+);
 import { projectService } from "@/services/project-service";
 import { ApiClientError } from "@/services/api-client";
 import { toast } from "sonner";
@@ -110,7 +143,9 @@ export function ProjectBoardPage({
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
 
   // List View Multi-selection for bulk actions
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // Task Detail Sheet state (Phase 4)
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
@@ -122,7 +157,10 @@ export function ProjectBoardPage({
   const [activities, setActivities] = useState<WorkItemActivityResponse[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  const boardRequestIdRef = useRef(0);
+
   const loadData = useCallback(async () => {
+    const curReqId = ++boardRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -133,23 +171,29 @@ export function ProjectBoardPage({
           page_size: 100,
         }),
       ]);
-      setBoard(boardData);
-      setProject(projectData);
-      setMembers(membersData.items || []);
+      if (curReqId === boardRequestIdRef.current) {
+        setBoard(boardData);
+        setProject(projectData);
+        setMembers(membersData.items || []);
+      }
     } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        if (err.status === 401) {
-          router.push(`/${currentLocale}/login`);
-          return;
+      if (curReqId === boardRequestIdRef.current) {
+        if (err instanceof ApiClientError) {
+          if (err.status === 401) {
+            router.push(`/${currentLocale}/login`);
+            return;
+          }
+          setError(err.message);
+        } else {
+          setError("Failed to load project board");
         }
-        setError(err.message);
-      } else {
-        setError("Failed to load project board");
       }
     } finally {
-      setIsLoading(false);
+      if (curReqId === boardRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [organizationId, projectId, router]);
+  }, [organizationId, projectId, router, currentLocale]);
 
   useEffect(() => {
     loadData();
@@ -196,12 +240,10 @@ export function ProjectBoardPage({
   ) => {
     if (!board) return;
 
-    // Snapshot current state for rollback
-    const previousBoard = JSON.parse(
-      JSON.stringify(board)
-    ) as KanbanBoardResponse;
+    // Snapshot current state for rollback (efficient reference preservation)
+    const previousBoard = board;
 
-    // Optimistically update board columns
+    // Optimistically update board columns without expensive deep JSON serialization
     const updatedColumns = (board.columns || []).map((col) => {
       // Remove task if present in this column
       const currentTasks = col.tasks || [];
@@ -339,117 +381,131 @@ export function ProjectBoardPage({
     }
   };
 
-  // Build assignee name map for display
-  const assigneeMap: Record<string, string> = {};
-  const memberOptions = members.map((m) => {
-    const name = m.user?.full_name || m.user?.email || "Unknown User";
-    assigneeMap[m.user_id] = name;
-    return {
-      userId: m.user_id,
-      name,
-    };
-  });
+  // Build assignee name map for display (memoized)
+  const { assigneeMap, memberOptions } = useMemo(() => {
+    const map: Record<string, string> = {};
+    const opts = members.map((m) => {
+      const name = m.user?.full_name || m.user?.email || "Unknown User";
+      map[m.user_id] = name;
+      return {
+        userId: m.user_id,
+        name,
+      };
+    });
+    return { assigneeMap: map, memberOptions: opts };
+  }, [members]);
 
   // Extract available statuses
-  const availableStatuses = (board?.columns || []).map((c) => ({
-    id: c.status.id,
-    name: c.status.name,
-  }));
-
-  // Filter tasks in board according to search and status filter (Kanban view)
-  const filteredBoard: KanbanBoardResponse = board
-    ? {
-        ...board,
-        columns: (board.columns || [])
-          .filter((col) =>
-            statusFilter === "all" ? true : col.status.id === statusFilter
-          )
-          .map((col) => ({
-            ...col,
-            tasks: (col.tasks || []).filter((t) => {
-              if (!search.trim()) return true;
-              const q = search.toLowerCase();
-              return (
-                t.title.toLowerCase().includes(q) ||
-                t.issue_key.toLowerCase().includes(q) ||
-                (t.description && t.description.toLowerCase().includes(q))
-              );
-            }),
-          })),
-      }
-    : { project_id: projectId, columns: [], total_tasks: 0 };
-
-  // Filter tasks for List view
-  const allBoardTasks: WorkItemResponse[] = (board?.columns || []).flatMap(
-    (col) => col.tasks || []
+  const availableStatuses = useMemo(
+    () =>
+      (board?.columns || []).map((c) => ({
+        id: c.status.id,
+        name: c.status.name,
+      })),
+    [board?.columns]
   );
 
-  const filteredListTasks = allBoardTasks.filter((t) => {
-    if (listFilters.search?.trim()) {
-      const q = listFilters.search.toLowerCase();
-      const matches =
-        t.title.toLowerCase().includes(q) ||
-        t.issue_key.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q));
-      if (!matches) return false;
-    }
-    if (listFilters.status && listFilters.status !== "all") {
-      if (t.status !== listFilters.status) return false;
-    }
-    if (listFilters.priority && listFilters.priority !== "all") {
-      if (t.priority?.toLowerCase() !== listFilters.priority.toLowerCase()) {
-        return false;
-      }
-    }
-    if (listFilters.assignee_id && listFilters.assignee_id !== "all") {
-      if (t.assignee_id !== listFilters.assignee_id) return false;
-    }
-    if (listFilters.due_preset && listFilters.due_preset !== "all") {
-      const now = new Date();
-      if (listFilters.due_preset === "overdue") {
-        if (!t.due_date || new Date(t.due_date) >= now) return false;
-      } else if (listFilters.due_preset === "due_soon") {
-        if (!t.due_date) return false;
-        const due = new Date(t.due_date);
-        const inSevenDays = new Date(now.getTime() + 7 * 86400000);
-        if (due < now || due > inSevenDays) return false;
-      } else if (listFilters.due_preset === "no_due_date") {
-        if (t.due_date) return false;
-      }
-    }
-    return true;
-  });
+  // Filter tasks in board according to search and status filter (Kanban view)
+  const filteredBoard: KanbanBoardResponse = useMemo(() => {
+    if (!board) return { project_id: projectId, columns: [], total_tasks: 0 };
+    return {
+      ...board,
+      columns: (board.columns || [])
+        .filter((col) =>
+          statusFilter === "all" ? true : col.status.id === statusFilter
+        )
+        .map((col) => ({
+          ...col,
+          tasks: (col.tasks || []).filter((t) => {
+            if (!search.trim()) return true;
+            const q = search.toLowerCase();
+            return (
+              t.title.toLowerCase().includes(q) ||
+              t.issue_key.toLowerCase().includes(q) ||
+              (t.description && t.description.toLowerCase().includes(q))
+            );
+          }),
+        })),
+    };
+  }, [board, projectId, statusFilter, search]);
 
-  filteredListTasks.sort((a, b) => {
-    const dir = listFilters.sort_dir === "desc" ? -1 : 1;
-    if (listFilters.sort_by === "title") {
-      return a.title.localeCompare(b.title) * dir;
-    }
-    if (listFilters.sort_by === "status") {
-      return a.status.localeCompare(b.status) * dir;
-    }
-    if (listFilters.sort_by === "priority") {
-      return (a.priority || "").localeCompare(b.priority || "") * dir;
-    }
-    if (listFilters.sort_by === "due_date") {
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return (
-        (new Date(a.due_date).getTime() - new Date(b.due_date).getTime()) * dir
-      );
-    }
-    return a.issue_key.localeCompare(b.issue_key) * dir;
-  });
+  // Filter tasks for List view
+  const allBoardTasks: WorkItemResponse[] = useMemo(
+    () => (board?.columns || []).flatMap((col) => col.tasks || []),
+    [board?.columns]
+  );
+
+  const filteredListTasks = useMemo(() => {
+    const tasks = allBoardTasks.filter((t) => {
+      if (listFilters.search?.trim()) {
+        const q = listFilters.search.toLowerCase();
+        const matches =
+          t.title.toLowerCase().includes(q) ||
+          t.issue_key.toLowerCase().includes(q) ||
+          (t.description && t.description.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      if (listFilters.status && listFilters.status !== "all") {
+        if (t.status !== listFilters.status) return false;
+      }
+      if (listFilters.priority && listFilters.priority !== "all") {
+        if (t.priority?.toLowerCase() !== listFilters.priority.toLowerCase()) {
+          return false;
+        }
+      }
+      if (listFilters.assignee_id && listFilters.assignee_id !== "all") {
+        if (t.assignee_id !== listFilters.assignee_id) return false;
+      }
+      if (listFilters.due_preset && listFilters.due_preset !== "all") {
+        const now = new Date();
+        if (listFilters.due_preset === "overdue") {
+          if (!t.due_date || new Date(t.due_date) >= now) return false;
+        } else if (listFilters.due_preset === "due_soon") {
+          if (!t.due_date) return false;
+          const due = new Date(t.due_date);
+          const inSevenDays = new Date(now.getTime() + 7 * 86400000);
+          if (due < now || due > inSevenDays) return false;
+        } else if (listFilters.due_preset === "no_due_date") {
+          if (t.due_date) return false;
+        }
+      }
+      return true;
+    });
+
+    return tasks.sort((a, b) => {
+      const dir = listFilters.sort_dir === "desc" ? -1 : 1;
+      if (listFilters.sort_by === "title") {
+        return a.title.localeCompare(b.title) * dir;
+      }
+      if (listFilters.sort_by === "status") {
+        return a.status.localeCompare(b.status) * dir;
+      }
+      if (listFilters.sort_by === "priority") {
+        return (a.priority || "").localeCompare(b.priority || "") * dir;
+      }
+      if (listFilters.sort_by === "due_date") {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return (
+          (new Date(a.due_date).getTime() - new Date(b.due_date).getTime()) *
+          dir
+        );
+      }
+      return a.issue_key.localeCompare(b.issue_key) * dir;
+    });
+  }, [allBoardTasks, listFilters]);
 
   const listPageSize = 25;
   const listTotalPages = Math.max(
     1,
     Math.ceil(filteredListTasks.length / listPageSize)
   );
-  const paginatedListTasks = filteredListTasks.slice(
-    (listPage - 1) * listPageSize,
-    listPage * listPageSize
-  );
+  const paginatedListTasks = useMemo(() => {
+    return filteredListTasks.slice(
+      (listPage - 1) * listPageSize,
+      listPage * listPageSize
+    );
+  }, [filteredListTasks, listPage]);
 
   const handleViewModeChange = (mode: ProjectViewMode) => {
     setViewMode(mode);
