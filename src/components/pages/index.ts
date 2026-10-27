@@ -15,3 +15,4 @@ export { ErrorPage } from "./error-page";
 export { NotFoundPage } from "./not-found-page";
 export { MyTasksPage } from "./my-tasks-page";
 export { ProjectScrumPage } from "./project-scrum-page";
+export { ReportsPage } from "./reports-page";

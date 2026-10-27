@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Building2,
   CheckSquare,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,11 @@ const mainNavItems: NavItem[] = [
     title: "Backlog & Sprints",
     href: "/projects/default/backlog",
     icon: Layers,
+  },
+  {
+    title: "Reports & Analytics",
+    href: "/reports",
+    icon: BarChart3,
   },
   {
     title: "Settings",
@@ -253,7 +259,9 @@ export function AppSidebar({
                     title={collapsed ? item.title : undefined}
                   >
                     <Icon className="h-4 w-4 shrink-0 text-primary" />
-                    {!collapsed && <span className="truncate">{item.title}</span>}
+                    {!collapsed && (
+                      <span className="truncate">{item.title}</span>
+                    )}
                   </Link>
                 );
               });

@@ -14,6 +14,7 @@ import {
   Calendar as CalendarNavIcon,
   GitBranch,
   Flag,
+  BarChart3,
 } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { KanbanBoard } from "@/components/shared/kanban-board";
@@ -601,6 +602,20 @@ export function ProjectBoardPage({
             >
               <Layers className="h-3.5 w-3.5 text-primary" />
               <span className="hidden sm:inline">Scrum & Sprints</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                router.push(
+                  `/${currentLocale}/organizations/${organizationId}/projects/${projectId}/reports`
+                )
+              }
+              className="gap-1.5"
+              title="Reports & Analytics"
+            >
+              <BarChart3 className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Reports</span>
             </Button>
             <Button
               variant="outline"
