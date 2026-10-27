@@ -563,7 +563,7 @@ export interface NotificationResponse {
   resource_id?: string | null;
   is_read: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   actor?: UserBrief | null;
 }
 
@@ -577,6 +577,39 @@ export interface NotificationListResponse {
 
 export interface NotificationUnreadCountResponse {
   unread_count: number;
+}
+
+export type NotificationEventType =
+  | "task_assigned"
+  | "task_mentioned"
+  | "task_comment"
+  | "task_status_changed"
+  | string;
+
+export interface NotificationCreatedWsPayload extends NotificationResponse {}
+
+export interface NotificationReadWsPayload {
+  id: string;
+  user_id: string;
+  is_read: boolean;
+}
+
+export interface NotificationsAllReadWsPayload {
+  user_id: string;
+  marked_count: number;
+}
+
+export interface WebSocketNotificationEnvelope<T = unknown> {
+  event:
+    | "connected"
+    | "ping"
+    | "pong"
+    | "notification_created"
+    | "notification_read"
+    | "notifications_all_read"
+    | string;
+  data?: T;
+  timestamp?: string;
 }
 
 // ==========================================
@@ -744,5 +777,3 @@ export interface SprintRetrospectiveResponse {
   created_at: string;
   updated_at: string;
 }
-
-

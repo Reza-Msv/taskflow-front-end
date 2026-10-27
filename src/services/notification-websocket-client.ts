@@ -11,27 +11,30 @@
  * - Strict duplicate suppression
  */
 
-import type { NotificationResponse } from "@/services/generated/api-types";
+import type {
+  NotificationResponse,
+  NotificationCreatedWsPayload,
+  NotificationReadWsPayload,
+  NotificationsAllReadWsPayload,
+  WebSocketNotificationEnvelope,
+} from "@/services/generated/api-types";
 
 export type WebSocketConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "unauthorized";
+  "disconnected" | "connecting" | "connected" | "unauthorized";
 
 export type NotificationWsEvent =
   | "connected"
   | "notification_created"
   | "notification_read"
   | "notifications_all_read"
+  | "ping"
   | "pong";
 
-export interface WsMessage<T = unknown> {
-  event: NotificationWsEvent | string;
-  data?: T;
-}
+export type NotificationEventHandler = (
+  event: NotificationWsEvent | string,
+  data: unknown
+) => void;
 
-export type NotificationEventHandler = (event: string, data: any) => void;
 export type StatusChangeHandler = (status: WebSocketConnectionStatus) => void;
 
 export function getWebSocketNotificationUrl(customUrl?: string): string {
@@ -55,6 +58,15 @@ export function getWebSocketNotificationUrl(customUrl?: string): string {
   return "ws://127.0.0.1:8000/api/v1/notifications/ws";
 }
 
+export interface NotificationWebSocketClientOptions {
+  url?: string;
+  onReconnect?: () => Promise<void>;
+  pingIntervalMs?: number;
+  baseReconnectDelayMs?: number;
+  maxReconnectDelayMs?: number;
+  maxReconnectAttempts?: number;
+}
+
 export class NotificationWebSocketClient {
   private ws: WebSocket | null = null;
   private url: string;
@@ -71,14 +83,10 @@ export class NotificationWebSocketClient {
   private status: WebSocketConnectionStatus = "disconnected";
   private onReconnectCallback?: () => Promise<void>;
   private wasConnectedOnce = false;
+  private boundOnlineHandler: (() => void) | null = null;
+  private boundOfflineHandler: (() => void) | null = null;
 
-  constructor(options: {
-    url?: string;
-    onReconnect?: () => Promise<void>;
-    pingIntervalMs?: number;
-    baseReconnectDelayMs?: number;
-    maxReconnectDelayMs?: number;
-  } = {}) {
+  constructor(options: NotificationWebSocketClientOptions = {}) {
     this.url = getWebSocketNotificationUrl(options.url);
     this.onReconnectCallback = options.onReconnect;
     if (options.pingIntervalMs) this.pingIntervalMs = options.pingIntervalMs;
@@ -86,6 +94,41 @@ export class NotificationWebSocketClient {
       this.baseReconnectDelayMs = options.baseReconnectDelayMs;
     if (options.maxReconnectDelayMs)
       this.maxReconnectDelayMs = options.maxReconnectDelayMs;
+    if (options.maxReconnectAttempts)
+      this.maxReconnectAttempts = options.maxReconnectAttempts;
+
+    this.setupNetworkListeners();
+  }
+
+  private setupNetworkListeners(): void {
+    if (typeof window !== "undefined") {
+      this.boundOnlineHandler = () => {
+        if (
+          !this.isExplicitlyClosed &&
+          this.status !== "connected" &&
+          this.status !== "unauthorized"
+        ) {
+          this.reconnectAttempts = 0;
+          this.connect();
+        }
+      };
+
+      this.boundOfflineHandler = () => {
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        this.stopHeartbeat();
+        if (this.ws) {
+          this.ws.close();
+          this.ws = null;
+        }
+        this.setStatus("disconnected");
+      };
+
+      window.addEventListener("online", this.boundOnlineHandler);
+      window.addEventListener("offline", this.boundOfflineHandler);
+    }
   }
 
   public getStatus(): WebSocketConnectionStatus {
@@ -145,7 +188,10 @@ export class NotificationWebSocketClient {
         // If this was a reconnection, trigger REST synchronization to reconcile missed notifications
         if (this.wasConnectedOnce && this.onReconnectCallback) {
           this.onReconnectCallback().catch((err) =>
-            console.error("Failed to reconcile notifications after reconnect:", err)
+            console.error(
+              "Failed to reconcile notifications after reconnect:",
+              err
+            )
           );
         }
         this.wasConnectedOnce = true;
@@ -153,7 +199,9 @@ export class NotificationWebSocketClient {
 
       this.ws.onmessage = (event: MessageEvent) => {
         try {
-          const payload = JSON.parse(event.data) as WsMessage;
+          const payload = JSON.parse(
+            event.data
+          ) as WebSocketNotificationEnvelope;
           if (payload && payload.event) {
             this.dispatch(payload.event, payload.data);
           }
@@ -181,11 +229,11 @@ export class NotificationWebSocketClient {
         }
       };
 
-      this.ws.onerror = (err) => {
+      this.ws.onerror = () => {
         // Log cleanly without exposing sensitive context
         console.warn("WebSocket notification error occurred");
       };
-    } catch (e) {
+    } catch {
       this.setStatus("disconnected");
       this.scheduleReconnect();
     }
@@ -203,9 +251,21 @@ export class NotificationWebSocketClient {
       this.ws = null;
     }
     this.setStatus("disconnected");
+
+    // Clean up window network listeners
+    if (typeof window !== "undefined") {
+      if (this.boundOnlineHandler) {
+        window.removeEventListener("online", this.boundOnlineHandler);
+        this.boundOnlineHandler = null;
+      }
+      if (this.boundOfflineHandler) {
+        window.removeEventListener("offline", this.boundOfflineHandler);
+        this.boundOfflineHandler = null;
+      }
+    }
   }
 
-  private dispatch(event: string, data: any): void {
+  private dispatch(event: string, data: unknown): void {
     this.listeners.forEach((handler) => {
       try {
         handler(event, data);
@@ -237,6 +297,10 @@ export class NotificationWebSocketClient {
 
   private scheduleReconnect(): void {
     if (this.isExplicitlyClosed || this.status === "unauthorized") return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      // Browser is offline; will reconnect when online event fires
+      return;
+    }
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.warn("Max WebSocket reconnection attempts reached.");
       return;
@@ -259,5 +323,24 @@ export class NotificationWebSocketClient {
         this.connect();
       }
     }, delay);
+  }
+}
+
+// Global shared client singleton
+let sharedWsClient: NotificationWebSocketClient | null = null;
+
+export function getSharedNotificationWebSocketClient(
+  options?: NotificationWebSocketClientOptions
+): NotificationWebSocketClient {
+  if (!sharedWsClient) {
+    sharedWsClient = new NotificationWebSocketClient(options);
+  }
+  return sharedWsClient;
+}
+
+export function resetSharedNotificationWebSocketClient(): void {
+  if (sharedWsClient) {
+    sharedWsClient.disconnect();
+    sharedWsClient = null;
   }
 }

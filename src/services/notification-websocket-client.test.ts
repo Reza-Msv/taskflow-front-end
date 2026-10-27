@@ -61,7 +61,9 @@ describe("NotificationWebSocketClient", () => {
   describe("getWebSocketNotificationUrl", () => {
     it("converts http API URL to ws WebSocket URL", () => {
       const url = getWebSocketNotificationUrl();
-      expect(url).toMatch(/^ws:\/\/127\.0\.0\.1:8000\/api\/v1\/notifications\/ws$/);
+      expect(url).toMatch(
+        /^ws:\/\/127\.0\.0\.1:8000\/api\/v1\/notifications\/ws$/
+      );
     });
 
     it("respects custom URL when provided", () => {
@@ -218,6 +220,30 @@ describe("NotificationWebSocketClient", () => {
 
       expect(client.getStatus()).toBe("connected");
       expect(onReconnect).toHaveBeenCalledTimes(1);
+
+      client.disconnect();
+    });
+
+    it("pauses reconnect when offline and resumes when coming back online", async () => {
+      const client = new NotificationWebSocketClient({
+        baseReconnectDelayMs: 200,
+        maxReconnectDelayMs: 2000,
+      });
+
+      client.connect();
+      vi.advanceTimersByTime(20);
+      expect(client.getStatus()).toBe("connected");
+
+      // Trigger offline event
+      window.dispatchEvent(new Event("offline"));
+      expect(client.getStatus()).toBe("disconnected");
+
+      // Trigger online event
+      window.dispatchEvent(new Event("online"));
+      expect(client.getStatus()).toBe("connecting");
+
+      vi.advanceTimersByTime(20);
+      expect(client.getStatus()).toBe("connected");
 
       client.disconnect();
     });

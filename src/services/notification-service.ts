@@ -70,8 +70,8 @@ export const notificationService = {
   /**
    * Mark all user notifications as read
    */
-  async markAllAsRead(): Promise<void> {
-    await apiClient<void>(NOTIFICATION_ENDPOINTS.readAll, {
+  async markAllAsRead(): Promise<{ message: string }> {
+    return apiClient<{ message: string }>(NOTIFICATION_ENDPOINTS.readAll, {
       method: "POST",
     });
   },
