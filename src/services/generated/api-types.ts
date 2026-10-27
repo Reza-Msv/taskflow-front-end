@@ -314,8 +314,16 @@ export interface UserActivityListResponse {
 // Task Management & Kanban Board Interfaces
 // ==========================================
 
-export type WorkItemType = "task" | "bug" | "story" | "epic" | "subtask";
+export type WorkItemType =
+  "task" | "bug" | "story" | "epic" | "subtask" | "milestone";
 export type WorkItemPriority = "lowest" | "low" | "medium" | "high" | "urgent";
+
+export interface TaskDependencyLink {
+  id: string;
+  predecessor_id: string;
+  successor_id: string;
+  dependency_type?: string;
+}
 
 export interface WorkItemResponse {
   id: string;

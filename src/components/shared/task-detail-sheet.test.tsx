@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TaskDetailSheet } from "./task-detail-sheet";
 import { taskService } from "@/services/task-service";
 import { collaborationService } from "@/services/collaboration-service";
+import { ApiClientError } from "@/services/api-client";
 import type {
   WorkItemDetailResponse,
   WorkItemCommentResponse,
@@ -30,6 +31,10 @@ vi.mock("@/services/task-service", () => ({
         `/api/v1/organizations/${orgId}/projects/${projId}/tasks/${taskId}/attachments/${attId}/download`
     ),
     getTaskHistory: vi.fn(),
+    getTask: vi.fn(),
+    getTasks: vi.fn(),
+    setTaskParent: vi.fn(),
+    removeTaskParent: vi.fn(),
   },
 }));
 
@@ -261,7 +266,9 @@ describe("TaskDetailSheet", () => {
 
     await waitFor(() => {
       expect(screen.getByText("PROJ-100")).toBeInTheDocument();
-      expect(screen.getByText("Implement Authentication Flow")).toBeInTheDocument();
+      expect(
+        screen.getByText("Implement Authentication Flow")
+      ).toBeInTheDocument();
       expect(
         screen.getByText("Set up OAuth and JWT session handling.")
       ).toBeInTheDocument();
@@ -451,9 +458,7 @@ describe("TaskDetailSheet", () => {
     const commentsTab = screen.getByRole("tab", { name: /comments/i });
     await user.click(commentsTab);
 
-    expect(
-      screen.getByText(/Please check this out/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Please check this out/i)).toBeInTheDocument();
 
     const textarea = screen.getByPlaceholderText(
       /Write a comment... \(Type @ to mention team members\)/i
@@ -461,9 +466,12 @@ describe("TaskDetailSheet", () => {
     await user.type(textarea, "All tests passing @Jane");
 
     await waitFor(() => {
-      expect(
-        collaborationService.getMentionableMembers
-      ).toHaveBeenCalledWith(mockOrgId, mockProjId, mockTaskId, "Jane");
+      expect(collaborationService.getMentionableMembers).toHaveBeenCalledWith(
+        mockOrgId,
+        mockProjId,
+        mockTaskId,
+        "Jane"
+      );
     });
 
     const submitBtn = screen.getByRole("button", { name: /comment/i });
@@ -513,6 +521,143 @@ describe("TaskDetailSheet", () => {
         mockTaskId,
         { status: "done", version: 2 }
       );
+    });
+  });
+
+  it("handles Dependencies tab: loads project tasks and links predecessor", async () => {
+    const user = userEvent.setup();
+    vi.mocked(taskService.getTasks).mockResolvedValueOnce({
+      items: [
+        {
+          id: "task-200",
+          project_id: mockProjId,
+          organization_id: mockOrgId,
+          sequence_number: 200,
+          issue_key: "PROJ-200",
+          title: "Predecessor Requirement",
+          status: "done",
+          priority: "high",
+          type: "task",
+          rank: "0|1000:",
+          version: 1,
+          created_at: "2026-10-15T10:00:00Z",
+          updated_at: "2026-10-16T12:00:00Z",
+        },
+      ],
+      page: 1,
+      page_size: 150,
+      total: 1,
+    });
+    vi.mocked(taskService.setTaskParent).mockResolvedValueOnce({
+      ...mockTaskDetail,
+      parent_id: "task-200",
+    });
+
+    render(
+      <TaskDetailSheet
+        taskId={mockTaskId}
+        organizationId={mockOrgId}
+        projectId={mockProjId}
+        isOpen={true}
+        onClose={vi.fn()}
+        members={members}
+        availableStatuses={availableStatuses}
+      />
+    );
+
+    await screen.findByText("PROJ-100");
+
+    // Click Dependencies tab
+    const depTab = screen.getByRole("tab", { name: /Dependencies/i });
+    await user.click(depTab);
+
+    expect(screen.getByText("Predecessor (Blocked By)")).toBeInTheDocument();
+    expect(screen.getByText("Successors (Blocks)")).toBeInTheDocument();
+
+    // Select predecessor
+    const select = await screen.findByLabelText("Select predecessor task");
+    await user.selectOptions(select, "task-200");
+
+    const linkBtn = screen.getByRole("button", { name: "Link" });
+    await user.click(linkBtn);
+
+    await waitFor(() => {
+      expect(taskService.setTaskParent).toHaveBeenCalledWith(
+        mockOrgId,
+        mockProjId,
+        mockTaskId,
+        "task-200"
+      );
+    });
+  });
+
+  it("displays circular hierarchy error when setting a cyclical predecessor", async () => {
+    const user = userEvent.setup();
+    vi.mocked(taskService.getTasks).mockResolvedValueOnce({
+      items: [
+        {
+          id: "task-300",
+          project_id: mockProjId,
+          organization_id: mockOrgId,
+          sequence_number: 300,
+          issue_key: "PROJ-300",
+          title: "Circular Child",
+          status: "todo",
+          priority: "high",
+          type: "task",
+          rank: "0|1000:",
+          version: 1,
+          created_at: "2026-10-15T10:00:00Z",
+          updated_at: "2026-10-16T12:00:00Z",
+        },
+      ],
+      page: 1,
+      page_size: 150,
+      total: 1,
+    });
+    vi.mocked(taskService.setTaskParent).mockRejectedValueOnce(
+      new ApiClientError(400, {
+        error: {
+          code: "CIRCULAR_HIERARCHY",
+          message:
+            "Setting this parent would create a circular dependency cycle.",
+          request_id: "req-err-1",
+        },
+      })
+    );
+
+    render(
+      <TaskDetailSheet
+        taskId={mockTaskId}
+        organizationId={mockOrgId}
+        projectId={mockProjId}
+        isOpen={true}
+        onClose={vi.fn()}
+        members={members}
+        availableStatuses={availableStatuses}
+      />
+    );
+
+    await screen.findByText("PROJ-100");
+
+    const depTab = screen.getByRole("tab", { name: /Dependencies/i });
+    await user.click(depTab);
+
+    const select = await screen.findByLabelText("Select predecessor task");
+    await user.selectOptions(select, "task-300");
+
+    const linkBtn = screen.getByRole("button", { name: "Link" });
+    await user.click(linkBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Dependency Validation Failed")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Circular hierarchy error: Setting this parent would create a circular dependency cycle/i
+        )
+      ).toBeInTheDocument();
     });
   });
 });
