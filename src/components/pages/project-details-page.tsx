@@ -19,6 +19,7 @@ import {
   Edit2,
   Calendar,
   Layers,
+  GitMerge,
 } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { WorkflowConfigDialog } from "@/components/workflow/workflow-config-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { projectService } from "@/services/project-service";
 import { organizationService } from "@/services/organization-service";
@@ -102,6 +104,9 @@ export function ProjectDetailsPage({
   const [memberToRemove, setMemberToRemove] =
     useState<ProjectMembershipResponse | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
+
+  // Workflow Dialog state
+  const [isWorkflowOpen, setIsWorkflowOpen] = useState(false);
 
   const canManageProject =
     currentUserRole === "admin" ||
@@ -364,6 +369,16 @@ export function ProjectDetailsPage({
             >
               <Layers className="h-4 w-4 text-primary" />
               <span>Scrum & Sprints</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsWorkflowOpen(true)}
+              className="gap-1.5"
+            >
+              <GitMerge className="h-4 w-4 text-primary" />
+              <span>Workflow & Rules</span>
             </Button>
 
             {canManageProject && (
@@ -737,6 +752,15 @@ export function ProjectDetailsPage({
         confirmLabel={isDeleting ? "Deleting..." : "Delete Project"}
         isDestructive={true}
         onConfirm={handleDeleteSubmit}
+      />
+
+      {/* Workflow & Lifecycle Configuration Dialog */}
+      <WorkflowConfigDialog
+        isOpen={isWorkflowOpen}
+        onClose={() => setIsWorkflowOpen(false)}
+        organizationId={organizationId}
+        projectId={projectId}
+        projectName={project.name}
       />
     </PageContainer>
   );

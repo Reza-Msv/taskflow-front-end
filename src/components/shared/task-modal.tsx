@@ -18,13 +18,20 @@ import type {
   WorkItemCreateRequest,
   WorkItemUpdateRequest,
 } from "@/services/generated/api-types";
-import { Trash2 } from "lucide-react";
+import { Trash2, Sparkles, BookmarkPlus, Check } from "lucide-react";
+import {
+  getAllTemplates,
+  saveCustomTemplate,
+  type TaskTemplate,
+} from "@/lib/templates/task-templates";
+import { toast } from "sonner";
 
 export interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   task?: WorkItemResponse | null;
   defaultStatus?: string;
+  projectId?: string;
   members: Array<{ userId: string; name: string }>;
   availableStatuses: Array<{ id: string; name: string }>;
   onSubmitCreate: (data: WorkItemCreateRequest) => Promise<void>;
@@ -41,6 +48,7 @@ export function TaskModal({
   onClose,
   task,
   defaultStatus = "todo",
+  projectId = "",
   members,
   availableStatuses,
   onSubmitCreate,
@@ -64,6 +72,50 @@ export function TaskModal({
   const [estimatedPoints, setEstimatedPoints] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Template State
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [isSavingCustomTemplate, setIsSavingCustomTemplate] = useState(false);
+  const [customTemplateName, setCustomTemplateName] = useState("");
+
+  const templates = getAllTemplates(projectId);
+
+  const handleApplyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+
+    const tpl = templates.find((t) => t.id === templateId);
+    if (!tpl) return;
+
+    if (!title || templates.some((t) => title.startsWith(t.titlePrefix))) {
+      setTitle(tpl.titlePrefix);
+    }
+    setDescription(tpl.descriptionTemplate);
+    if (tpl.type && tpl.type !== "milestone") {
+      setType(tpl.type);
+    }
+    setPriority(tpl.priority);
+    toast.success(`Applied "${tpl.name}" template`);
+  };
+
+  const handleSaveAsTemplate = () => {
+    if (!title.trim() && !description.trim()) {
+      toast.error("Provide a title or description to save as template");
+      return;
+    }
+    const name = customTemplateName.trim() || title.trim().slice(0, 30) || "Custom Task Template";
+    saveCustomTemplate(projectId, {
+      name,
+      descriptionSnippet: description.trim().slice(0, 60) || "User custom template",
+      type,
+      priority,
+      titlePrefix: title.includes(":") ? `${title.split(":")[0]}: ` : "",
+      descriptionTemplate: description,
+    });
+    toast.success(`Saved template "${name}"`);
+    setIsSavingCustomTemplate(false);
+    setCustomTemplateName("");
+  };
+
   useEffect(() => {
     if (task) {
       setTitle(task.title || "");
@@ -85,6 +137,7 @@ export function TaskModal({
       setAssigneeId("");
       setDueDate("");
       setEstimatedPoints("");
+      setSelectedTemplateId("");
     }
     setFormError(null);
   }, [task, defaultStatus, isOpen]);
@@ -164,6 +217,77 @@ export function TaskModal({
           {formError && (
             <div className="rounded-md bg-destructive/10 p-2.5 text-xs text-destructive">
               {formError}
+            </div>
+          )}
+
+          {!isEditing && (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="task-template-select"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-foreground"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span>Start with a Template</span>
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setIsSavingCustomTemplate(!isSavingCustomTemplate)}
+                  className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                >
+                  <BookmarkPlus className="h-3 w-3" />
+                  <span>{isSavingCustomTemplate ? "Cancel" : "Save as template"}</span>
+                </button>
+              </div>
+
+              {isSavingCustomTemplate ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <Input
+                    placeholder="Template name (e.g. Incident Review)"
+                    value={customTemplateName}
+                    onChange={(e) => setCustomTemplateName(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveAsTemplate}
+                    className="h-8 gap-1 text-xs shrink-0"
+                  >
+                    <Check className="h-3 w-3" />
+                    <span>Save</span>
+                  </Button>
+                </div>
+              ) : (
+                <select
+                  id="task-template-select"
+                  value={selectedTemplateId}
+                  onChange={(e) => handleApplyTemplate(e.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                >
+                  <option value="">Blank Task (No template)</option>
+                  <optgroup label="Standard Agile Templates">
+                    {templates
+                      .filter((t) => !t.isCustom)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.type})
+                        </option>
+                      ))}
+                  </optgroup>
+                  {templates.some((t) => t.isCustom) && (
+                    <optgroup label="Custom Project Templates">
+                      {templates
+                        .filter((t) => t.isCustom)
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            ★ {t.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+              )}
             </div>
           )}
 

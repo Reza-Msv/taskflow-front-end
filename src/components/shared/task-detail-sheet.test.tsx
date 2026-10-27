@@ -660,4 +660,61 @@ describe("TaskDetailSheet", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("renders blocked predecessor banner and warns on completion", async () => {
+    const user = userEvent.setup();
+    const taskWithParent: WorkItemDetailResponse = {
+      ...mockTaskDetail,
+      parent_id: "task-parent-1",
+      status: "in_progress",
+    };
+
+    vi.mocked(taskService.getTaskDetail).mockResolvedValueOnce(taskWithParent);
+    vi.mocked(taskService.getTask).mockResolvedValueOnce({
+      id: "task-parent-1",
+      organization_id: mockOrgId,
+      project_id: mockProjId,
+      issue_key: "PROJ-99",
+      sequence_number: 99,
+      title: "Backend API Setup",
+      status: "in_progress",
+      type: "task",
+      priority: "high",
+      version: 1,
+      rank: "0|hzzzzz:",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    render(
+      <TaskDetailSheet
+        taskId={mockTaskId}
+        organizationId={mockOrgId}
+        projectId={mockProjId}
+        isOpen={true}
+        onClose={vi.fn()}
+        members={members}
+        availableStatuses={availableStatuses}
+      />
+    );
+
+    await screen.findByText("PROJ-100");
+
+    // Blocked Predecessor banner should be visible
+    await waitFor(() => {
+      expect(screen.getByText(/Blocked by Predecessor:/i)).toBeInTheDocument();
+      expect(screen.getByText(/Backend API Setup/i)).toBeInTheDocument();
+    });
+
+    // Attempting to move to done should trigger confirmation warning
+    const statusSelect = screen.getByLabelText("Status");
+    await user.selectOptions(statusSelect, "done");
+
+    await waitFor(() => {
+      expect(screen.getByText("Resolve Blocked Task?")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Predecessor task \[PROJ-99\] is still in_progress/i)
+      ).toBeInTheDocument();
+    });
+  });
 });

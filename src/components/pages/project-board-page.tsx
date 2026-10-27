@@ -15,6 +15,7 @@ import {
   GitBranch,
   Flag,
   BarChart3,
+  GitMerge,
 } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/shared/page-container";
 import { KanbanBoard } from "@/components/shared/kanban-board";
@@ -27,6 +28,8 @@ import { MilestoneModal } from "@/components/shared/milestone-modal";
 import { TaskModal } from "@/components/shared/task-modal";
 import { TaskHistoryDrawer } from "@/components/shared/task-history-drawer";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
+import { WorkflowConfigDialog } from "@/components/workflow/workflow-config-dialog";
+import { BulkTaskActionsBar } from "@/components/shared/bulk-task-actions-bar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { taskService } from "@/services/task-service";
@@ -102,6 +105,12 @@ export function ProjectBoardPage({
   );
   const [modalDefaultStatus, setModalDefaultStatus] = useState("todo");
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+
+  // Workflow Dialog state
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+
+  // List View Multi-selection for bulk actions
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
   // Task Detail Sheet state (Phase 4)
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
@@ -620,6 +629,16 @@ export function ProjectBoardPage({
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setIsWorkflowModalOpen(true)}
+              className="gap-1.5"
+              title="Workflow & Lifecycle Rules"
+            >
+              <GitMerge className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Workflow & Rules</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={loadData}
               className="gap-1.5"
             >
@@ -703,6 +722,9 @@ export function ProjectBoardPage({
               setDetailTaskId(taskId);
               setIsDetailSheetOpen(true);
             }}
+            selectable={true}
+            selectedTaskIds={selectedTaskIds}
+            onSelectionChange={setSelectedTaskIds}
             assigneeMap={assigneeMap}
             sortField={listFilters.sort_by}
             sortDirection={listFilters.sort_dir}
@@ -723,6 +745,21 @@ export function ProjectBoardPage({
             pageSize={listPageSize}
             onPageChange={setListPage}
           />
+
+          {/* Floating Bulk Actions Bar */}
+          {selectedTaskIds.size > 0 && (
+            <BulkTaskActionsBar
+              organizationId={organizationId}
+              projectId={projectId}
+              selectedTasks={allBoardTasks.filter((t) =>
+                selectedTaskIds.has(t.id)
+              )}
+              availableStatuses={availableStatuses}
+              members={members}
+              onClearSelection={() => setSelectedTaskIds(new Set())}
+              onOperationComplete={() => loadData()}
+            />
+          )}
         </div>
       )}
 
@@ -775,6 +812,7 @@ export function ProjectBoardPage({
         }}
         task={selectedTask}
         defaultStatus={modalDefaultStatus}
+        projectId={projectId}
         members={memberOptions}
         availableStatuses={availableStatuses}
         onSubmitCreate={handleCreateTask}
@@ -818,6 +856,16 @@ export function ProjectBoardPage({
         activities={activities}
         isLoading={isLoadingHistory}
         onRefresh={() => historyTask && loadTaskHistory(historyTask)}
+      />
+
+      {/* Workflow & Lifecycle Configuration Dialog */}
+      <WorkflowConfigDialog
+        isOpen={isWorkflowModalOpen}
+        onClose={() => setIsWorkflowModalOpen(false)}
+        organizationId={organizationId}
+        projectId={projectId}
+        projectName={project?.name}
+        initialStatuses={(board?.columns || []).map((c) => c.status)}
       />
     </PageContainer>
   );
